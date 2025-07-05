@@ -8,7 +8,7 @@ export const serverPayload = z.object({
 
 export const serverPayloadEntrySchema = serverPayload.transform(
   (payload: any) => ({
-    user_id: payload.userId,
+    userId: payload.userId,
     version: payload.version,
     type: payload.type,
   }),

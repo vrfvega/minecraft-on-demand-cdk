@@ -20,10 +20,10 @@ export const handler = async (
       TableName: TABLE_NAME,
       Item: marshall({
         executionId: partitionKey,
-        timestamp: new Date().toISOString(),
+        timestamp: Date.now(),
         config: createServerConfig(detail),
       }),
-      ConditionExpression: "attribute_not_exists(pk)",
+      ConditionExpression: "attribute_not_exists(executionId)",
     };
 
     const command = new PutItemCommand(params);
