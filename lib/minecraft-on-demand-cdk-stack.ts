@@ -28,12 +28,15 @@ export class MinecraftOnDemandCdkStack extends cdk.Stack {
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
-    const testLambda = new NodejsFunction(this, "TestLambda", {
+    const testLambda = new NodejsFunction(this, "ServerPayloadValidation", {
       runtime: Runtime.NODEJS_22_X,
       architecture: Architecture.ARM_64,
       memorySize: 1024,
-      entry: path.join(__dirname, "../lambda/testLambda/index.ts"),
-      environment: {},
+      entry: path.join(
+        __dirname,
+        "../lambda/server_payload_validation/index.ts",
+      ),
+      environment: { TABLE_NAME: provisioningHistory.tableName },
       bundling: {
         minify: true,
         nodeModules: ["zod"],
