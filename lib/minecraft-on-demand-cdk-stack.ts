@@ -1,44 +1,47 @@
 import * as cdk from "aws-cdk-lib";
-import {
-  aws_apigatewayv2,
-  aws_lambda,
-} from "aws-cdk-lib";
+import { RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from "constructs";
+import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
+import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import * as path from "node:path";
-import { PAYLOAD_VALIDATOR_LAMBDA_NODE_MODULES } from "./constants";
+import { Runtime, Architecture } from "aws-cdk-lib/aws-lambda";
+import path from "path";
 
 export class MinecraftOnDemandCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
-  }
 
-  serverPayloadValidationLambda = new NodejsFunction(
-    this,
-    "server_payload_validation",
-    {
-      runtime: aws_lambda.Runtime.NODEJS_22_X,
-      architecture: aws_lambda.Architecture.ARM_64,
+    const api = new RestApi(this, "MinecraftOnDemandApi", {
+      restApiName: "Minecraft On Demand API",
+      defaultCorsPreflightOptions: {
+        allowOrigins: Cors.ALL_ORIGINS,
+        allowMethods: ["GET", "POST"],
+      },
+    });
+
+    const provisioningHistory = new TableV2(this, "ProvisioningHistory", {
+      tableName: "ProvisioningHistory",
+      partitionKey: { name: "executionId", type: AttributeType.STRING },
+      sortKey: { name: "timestamp", type: AttributeType.NUMBER },
+      billing: Billing.onDemand(),
+      deletionProtection: true,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+
+    const testLambda = new NodejsFunction(this, "TestLambda", {
+      runtime: Runtime.NODEJS_22_X,
+      architecture: Architecture.ARM_64,
       memorySize: 1024,
-      entry: path.join(
-        __dirname,
-        "../lambda/server_payload_validation/index.ts",
-      ),
+      entry: path.join(__dirname, "../lambda/testLambda/index.ts"),
+      environment: {},
       bundling: {
         minify: true,
-        nodeModules: PAYLOAD_VALIDATOR_LAMBDA_NODE_MODULES,
+        nodeModules: ["zod"],
       },
-    },
-  );
+    });
 
-  const api = new aws_apigatewayv2.HttpApi(this, "PayloadValidator", {
-    apiName: "PayloadValidatorApi",
-    createDefaultStage: true,
-  });
-
-  api.addRoutes({
-    path: '/webhooks/memberships',
-    methods: [aws_apigatewayv2.HttpMethod.POST],
-    integration: new HttpLambdaIntegration("MembershipWebhookIntegration", webhookReceiverLambda)
-  })
+    provisioningHistory.grantWriteData(testLambda);
+    let servers = api.root.addResource("servers");
+    servers.addMethod("POST", new LambdaIntegration(testLambda));
+  }
 }
