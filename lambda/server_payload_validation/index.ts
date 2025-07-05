@@ -10,11 +10,6 @@ const docClient = DynamoDBDocumentClient.from(ddbClient);
 
 const TABLE_NAME = process.env.PAYLOAD_TABLE!;
 
-const headers = {
-  "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
-};
-
 export const handler = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
@@ -37,7 +32,6 @@ export const handler = async (
 
     return {
       statusCode: 202,
-      headers,
       body: JSON.stringify({
         ok: true,
         message: "Server parsed and event published successfully",
@@ -48,7 +42,6 @@ export const handler = async (
     if (err instanceof ZodError) {
       return {
         statusCode: 400,
-        headers,
         body: JSON.stringify({
           ok: false,
           error: "Invalid request",
@@ -59,7 +52,6 @@ export const handler = async (
     console.error("Handler error:", err);
     return {
       statusCode: 500,
-      headers,
       body: JSON.stringify({ ok: false, error: "Internal Server Error" }),
     };
   }
