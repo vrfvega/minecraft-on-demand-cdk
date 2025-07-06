@@ -1,14 +1,13 @@
-import * as cdk from "aws-cdk-lib";
-import { RemovalPolicy } from "aws-cdk-lib";
-import { Construct } from "constructs";
+import path from "node:path";
+import { RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
 import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
+import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import { Runtime, Architecture } from "aws-cdk-lib/aws-lambda";
-import path from "path";
+import type { Construct } from "constructs";
 
-export class MinecraftOnDemandCdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+export class MinecraftOnDemandStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
     const api = new RestApi(this, "MinecraftOnDemandApi", {
@@ -44,7 +43,7 @@ export class MinecraftOnDemandCdkStack extends cdk.Stack {
     });
 
     provisioningHistory.grantWriteData(testLambda);
-    let servers = api.root.addResource("servers");
+    const servers = api.root.addResource("servers");
     servers.addMethod("POST", new LambdaIntegration(testLambda));
   }
 }

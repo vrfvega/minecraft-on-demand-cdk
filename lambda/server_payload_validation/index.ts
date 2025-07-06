@@ -1,9 +1,12 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { nanoid } from "nanoid";
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
+import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { nanoid } from "nanoid";
 import { ZodError } from "zod";
-import { serverPayloadEntrySchema } from "../../lib/schema/serverPayload";
+import {
+  type ServerPayload,
+  serverPayloadEntrySchema,
+} from "../../lib/schema/serverPayload";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 
@@ -56,7 +59,7 @@ export const handler = async (
   }
 };
 
-function createServerConfig(detail: any) {
+function createServerConfig(detail: ServerPayload) {
   return {
     serverId: nanoid(10),
     userId: detail.userId,

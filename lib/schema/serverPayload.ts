@@ -6,8 +6,10 @@ export const serverPayload = z.object({
   type: z.string().min(2).max(500),
 });
 
+export type ServerPayload = z.infer<typeof serverPayload>;
+
 export const serverPayloadEntrySchema = serverPayload.transform(
-  (payload: any) => ({
+  (payload: ServerPayload) => ({
     userId: payload.userId,
     version: payload.version,
     type: payload.type,
