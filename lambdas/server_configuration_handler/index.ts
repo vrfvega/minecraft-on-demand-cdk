@@ -24,7 +24,7 @@ export const handler = async (
       Item: marshall({
         executionId: partitionKey,
         timestamp: Date.now(),
-        config: createServerConfig(detail),
+        serverConfig: createServerConfig(detail),
       }),
       ConditionExpression: "attribute_not_exists(executionId)",
     };
