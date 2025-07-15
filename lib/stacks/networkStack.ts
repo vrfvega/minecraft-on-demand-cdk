@@ -1,6 +1,14 @@
-import {Stack, type StackProps} from "aws-cdk-lib";
-import {type ISecurityGroup, type IVpc, Peer, Port, SecurityGroup, SubnetType, Vpc} from "aws-cdk-lib/aws-ec2";
-import type {Construct} from "constructs";
+import { Stack, type StackProps } from "aws-cdk-lib";
+import {
+  type ISecurityGroup,
+  type IVpc,
+  Peer,
+  Port,
+  SecurityGroup,
+  SubnetType,
+  Vpc,
+} from "aws-cdk-lib/aws-ec2";
+import type { Construct } from "constructs";
 
 export class NetworkStack extends Stack {
   public readonly vpc: IVpc;
@@ -15,16 +23,16 @@ export class NetworkStack extends Stack {
       enableDnsHostnames: true,
       enableDnsSupport: true,
       subnetConfiguration: [
-        {name: "PrivateIsolated", subnetType: SubnetType.PRIVATE_ISOLATED},
-        {name: "Public", subnetType: SubnetType.PUBLIC},
+        { name: "PrivateIsolated", subnetType: SubnetType.PRIVATE_ISOLATED },
+        { name: "Public", subnetType: SubnetType.PUBLIC },
       ],
     });
 
     this.securityGroup = new SecurityGroup(this, "SecurityGroup", {
       vpc: this.vpc,
       description: "Default security group for Minecraft server tasks",
-      allowAllOutbound: true
-    })
+      allowAllOutbound: true,
+    });
 
     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.allTraffic());
   }

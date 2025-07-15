@@ -1,32 +1,52 @@
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
+import middy from "@middy/core";
+import httpCors from "@middy/http-cors";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 import { ZodError } from "zod";
 import {
   type ServerPayload,
   serverPayloadEntrySchema,
-} from "../../lib/schema/serverPayload";
+} from "../../lib/schemas/serverPayload.js";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 
 const client = new DynamoDBClient();
 
-export const handler = async (
+function createServerConfig(detail: ServerPayload) {
+  return {
+    version: detail.version,
+    type: detail.type,
+  };
+}
+
+export const lambdaHandler = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
   try {
     const detail = serverPayloadEntrySchema.parse(JSON.parse(event.body!));
+    const nanoidGenerator = customAlphabet(
+      "0123456789abcdefghijklmnopqrstuvwxyz",
+      12,
+    );
+    const partitionKey = nanoidGenerator();
 
-    const partitionKey = nanoid(10);
     const params = {
       TableName: TABLE_NAME,
       Item: marshall({
-        executionId: partitionKey,
-        timestamp: Date.now(),
+        serverId: partitionKey,
+        startedAt: Date.now(),
+        endedAt: null,
+        publicIp: null,
         serverConfig: createServerConfig(detail),
+        serverStatus: "PENDING",
+        userId: detail.userId,
+        taskArn: null,
+        instanceId: null,
+        containerInstanceArn: null,
       }),
-      ConditionExpression: "attribute_not_exists(executionId)",
+      ConditionExpression: "attribute_not_exists(serverId)",
     };
 
     const command = new PutItemCommand(params);
@@ -35,9 +55,9 @@ export const handler = async (
     return {
       statusCode: 202,
       body: JSON.stringify({
-        ok: true,
-        message: "Server parsed and event published successfully",
-        receivedBody: partitionKey,
+        serverId: partitionKey,
+        serverStatus: "PENDING",
+        location: `/servers/${partitionKey}`,
       }),
     };
   } catch (err) {
@@ -45,7 +65,6 @@ export const handler = async (
       return {
         statusCode: 400,
         body: JSON.stringify({
-          ok: false,
           error: "Invalid request",
           details: err.errors,
         }),
@@ -54,16 +73,15 @@ export const handler = async (
     console.error("Handler error:", err);
     return {
       statusCode: 500,
-      body: JSON.stringify({ ok: false, error: "Internal Server Error" }),
+      body: JSON.stringify({ error: "Internal Server Error" }),
     };
   }
 };
 
-function createServerConfig(detail: ServerPayload) {
-  return {
-    serverId: nanoid(10),
-    userId: detail.userId,
-    version: detail.version,
-    type: detail.type,
-  };
-}
+export const handler = middy(lambdaHandler).use(
+  httpCors({
+    origin: "*",
+    headers: "*",
+    methods: "*",
+  }),
+);

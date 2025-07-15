@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-import type {StackProps} from "aws-cdk-lib";
+import type { StackProps } from "aws-cdk-lib";
 import * as cdk from "aws-cdk-lib";
-import { MinecraftOnDemandServiceStack } from "../lib/minecraftOnDemandServiceStack";
-import {NetworkStack} from "../lib/networkStack";
-import {ServerOrchestrationStack} from "../lib/serverOrchestrationStack";
-import {StorageStack} from "../lib/storageStack";
+import dotenv from "dotenv";
+import { MinecraftOnDemandServiceStack } from "../lib/stacks/minecraftOnDemandServiceStack.js";
+import { NetworkStack } from "../lib/stacks/networkStack.js";
+import { ServerOrchestrationStack } from "../lib/stacks/serverOrchestrationStack.js";
+import { StorageStack } from "../lib/stacks/storageStack.js";
 
-require("dotenv").config();
+dotenv.config();
 const app = new cdk.App();
 
 export interface CommonDeploymentProps extends StackProps {}
@@ -14,7 +15,7 @@ export interface CommonDeploymentProps extends StackProps {}
 const commonDeploymentProps: CommonDeploymentProps = {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region:  process.env.CDK_DEFAULT_REGION,
+    region: process.env.CDK_DEFAULT_REGION,
   },
 };
 
@@ -26,17 +27,25 @@ const storageStack = new StorageStack(app, "StorageStack", {
   ...commonDeploymentProps,
 });
 
-const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(app, "MinecraftOnDemandServiceStack", {
-  ...commonDeploymentProps,
-  provisioningHistoryTable: storageStack.provisioningHistoryTable,
-});
+const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(
+  app,
+  "MinecraftOnDemandServiceStack",
+  {
+    ...commonDeploymentProps,
+    provisioningHistoryTable: storageStack.provisioningHistoryTable,
+  },
+);
 minecraftOnDemandServiceStack.node.addDependency(storageStack);
 
-const serverOrchestrationStack = new ServerOrchestrationStack(app, "ServerOrchestrationStack", {
-  ...commonDeploymentProps,
-  vpc: networkStack.vpc,
-  securityGroup: networkStack.securityGroup,
-  provisioningHistoryTable: storageStack.provisioningHistoryTable,
-});
+const serverOrchestrationStack = new ServerOrchestrationStack(
+  app,
+  "ServerOrchestrationStack",
+  {
+    ...commonDeploymentProps,
+    vpc: networkStack.vpc,
+    securityGroup: networkStack.securityGroup,
+    provisioningHistoryTable: storageStack.provisioningHistoryTable,
+  },
+);
 serverOrchestrationStack.node.addDependency(networkStack);
 serverOrchestrationStack.node.addDependency(storageStack);
