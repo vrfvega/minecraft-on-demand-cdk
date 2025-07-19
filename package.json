@@ -1,14 +1,16 @@
 {
 	"name": "minecraft-on-demand-cdk",
 	"version": "0.1.0",
+	"type": "module",
 	"bin": {
-		"minecraft-on-demand-cdk": "bin/app.js"
+		"minecraft-on-demand-cdk": "lib/app.js"
 	},
 	"scripts": {
 		"build": "tsc",
 		"watch": "tsc -w",
 		"test": "jest",
-		"cdk": "cdk"
+		"cdk": "cdk",
+		"check": "npx @biomejs/biome check --write"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",
@@ -22,11 +24,18 @@
 		"typescript": "~5.6.3"
 	},
 	"dependencies": {
+		"@aws-cdk/aws-pipes-alpha": "2.204.0-alpha.0",
+		"@aws-cdk/aws-pipes-sources-alpha": "^2.204.0-alpha.0",
+		"@aws-cdk/aws-pipes-targets-alpha": "^2.204.0-alpha.0",
 		"@aws-sdk/client-dynamodb": "^3.840.0",
+		"@aws-sdk/client-ec2": "^3.844.0",
+		"@aws-sdk/client-ecs": "^3.844.0",
 		"@aws-sdk/lib-dynamodb": "^3.840.0",
-		"aws-cdk-lib": "2.201.0",
+		"@middy/core": "^6.4.1",
+		"@middy/http-cors": "^6.4.1",
+		"aws-cdk-lib": "2.204.0",
 		"aws-lambda": "^1.0.7",
-		"constructs": "^10.0.0",
+		"constructs": "10.4.2",
 		"dotenv": "^17.0.1",
 		"nanoid": "^3.3.11",
 		"zod": "^3.25.74"

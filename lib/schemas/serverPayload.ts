@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const serverPayload = z.object({
-  userId: z.string().min(10),
+  userId: z.string(),
   version: z.string().min(2).max(100),
   type: z.string().min(2).max(500),
 });

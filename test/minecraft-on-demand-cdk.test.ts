@@ -3,7 +3,7 @@
 // import * as MinecraftOnDemandCdk from '../lib/minecraft-on-demand-cdk-stack';
 
 // example test. To run these tests, uncomment this file along with the
-// example resource in lib/minecraft-on-demand-cdk-stack.ts
+// example resource in lib/minecraftOnDemandServiceStack.ts
 test("SQS Queue Created", () => {
   //   const app = new cdk.App();
   //     // WHEN
