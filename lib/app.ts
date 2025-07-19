@@ -2,10 +2,10 @@
 import type { StackProps } from "aws-cdk-lib";
 import * as cdk from "aws-cdk-lib";
 import dotenv from "dotenv";
-import { MinecraftOnDemandServiceStack } from "../lib/stacks/minecraftOnDemandServiceStack.js";
-import { NetworkStack } from "../lib/stacks/networkStack.js";
-import { ServerOrchestrationStack } from "../lib/stacks/serverOrchestrationStack.js";
-import { StorageStack } from "../lib/stacks/storageStack.js";
+import { MinecraftOnDemandServiceStack } from "./stacks/minecraftOnDemandServiceStack.js";
+import { NetworkStack } from "./stacks/networkStack.js";
+import { ServerOrchestrationStack } from "./stacks/serverOrchestrationStack.js";
+import { StorageStack } from "./stacks/storageStack.js";
 
 dotenv.config();
 const app = new cdk.App();

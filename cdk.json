@@ -1,5 +1,5 @@
 {
-	"app": "npm run build && npx ts-node --prefer-ts-exts bin/app.js",
+	"app": "npm run build && npx ts-node --prefer-ts-exts lib/app.js",
 	"watch": {
 		"include": ["**"],
 		"exclude": [

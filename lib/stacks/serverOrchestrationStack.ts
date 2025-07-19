@@ -1,37 +1,24 @@
+import {DynamicInput, Filter, FilterPattern, InputTransformation, Pipe,} from "@aws-cdk/aws-pipes-alpha";
+import {DynamoDBSource, DynamoDBStartingPosition,} from "@aws-cdk/aws-pipes-sources-alpha";
+import {SfnStateMachine, StateMachineInvocationType,} from "@aws-cdk/aws-pipes-targets-alpha";
+import {Duration, Stack, type StackProps} from "aws-cdk-lib";
+import type {ITableV2} from "aws-cdk-lib/aws-dynamodb";
+import type {ISecurityGroup, IVpc} from "aws-cdk-lib/aws-ec2";
+import {Rule} from "aws-cdk-lib/aws-events";
+import {LambdaFunction} from "aws-cdk-lib/aws-events-targets";
+import {PolicyStatement, Role, ServicePrincipal} from "aws-cdk-lib/aws-iam";
+import {Architecture, Runtime} from "aws-cdk-lib/aws-lambda";
+import {NodejsFunction} from "aws-cdk-lib/aws-lambda-nodejs";
+import {LogGroup} from "aws-cdk-lib/aws-logs";
 import {
-  DynamicInput,
-  Filter,
-  FilterPattern,
-  InputTransformation,
-  Pipe,
-} from "@aws-cdk/aws-pipes-alpha";
-import {
-  DynamoDBSource,
-  DynamoDBStartingPosition,
-} from "@aws-cdk/aws-pipes-sources-alpha";
-import {
-  SfnStateMachine,
-  StateMachineInvocationType,
-} from "@aws-cdk/aws-pipes-targets-alpha";
-import { Duration, Stack, type StackProps } from "aws-cdk-lib";
-import type { ITableV2 } from "aws-cdk-lib/aws-dynamodb";
-import type { ISecurityGroup, IVpc } from "aws-cdk-lib/aws-ec2";
-import { Rule } from "aws-cdk-lib/aws-events";
-import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
-import { PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
-import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
-import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import {
-  Choice,
-  Condition,
   DefinitionBody,
   IntegrationPattern,
   JsonPath,
+  LogLevel,
   Pass,
   StateMachine,
+  StateMachineType,
   TaskInput,
-  Wait,
-  WaitTime,
 } from "aws-cdk-lib/aws-stepfunctions";
 import {
   CallAwsService,
@@ -39,8 +26,8 @@ import {
   DynamoUpdateItem,
   LambdaInvoke,
 } from "aws-cdk-lib/aws-stepfunctions-tasks";
-import type { Construct } from "constructs";
-import { ComputeConstruct } from "../constructs/ComputeConstruct.js";
+import type {Construct} from "constructs";
+import {ComputeConstruct} from "../constructs/ComputeConstruct.js";
 
 export interface ServerOrchestrationStackProps extends StackProps {
   vpc: IVpc;
@@ -88,10 +75,7 @@ export class ServerOrchestrationStack extends Stack {
       resultPath: "$.runInstanceResult",
     });
 
-    const instanceCheckerHandler = new NodejsFunction(
-      this,
-      "InstanceCheckerHandler",
-      {
+    const instanceCheckerHandler = new NodejsFunction(this, "InstanceCheckerHandler", {
         runtime: Runtime.NODEJS_22_X,
         architecture: Architecture.ARM_64,
         memorySize: 1024,
@@ -105,8 +89,7 @@ export class ServerOrchestrationStack extends Stack {
           nodeModules: ["zod"],
           externalModules: ["@aws-sdk/*"],
         },
-      },
-    );
+    });
     instanceCheckerHandler.addToRolePolicy(
       new PolicyStatement({
         actions: [
@@ -118,14 +101,7 @@ export class ServerOrchestrationStack extends Stack {
       }),
     );
 
-    const waitInLoop = new Wait(this, "Wait between polls", {
-      time: WaitTime.duration(Duration.seconds(10)),
-    });
-
-    const checkInstanceStatus = new LambdaInvoke(
-      this,
-      "Check instance status",
-      {
+    const checkInstanceStatus = new LambdaInvoke(this, "Check instance status", {
         lambdaFunction: instanceCheckerHandler,
         payloadResponseOnly: true,
         payload: TaskInput.fromObject({
@@ -133,8 +109,7 @@ export class ServerOrchestrationStack extends Stack {
           ec2InstanceId: JsonPath.stringAt("$.runInstanceResult.InstanceId"),
         }),
         resultPath: "$.checkerResult",
-      },
-    );
+    });
 
     const runServerTask = new CallAwsService(this, "Run server task", {
       service: "ecs",
@@ -212,36 +187,38 @@ export class ServerOrchestrationStack extends Stack {
       resultPath: JsonPath.DISCARD,
     });
 
-    const serverOrchestrationStateMachine = new StateMachine(
-      this,
-      "ServerOrchestrator",
-      {
-        definitionBody: DefinitionBody.fromChainable(
-          unwrapInput
-            .next(runInstance)
-            .next(waitInLoop)
-            .next(checkInstanceStatus)
-            .next(
-              new Choice(this, "Is instance ready?")
-                .when(
-                  Condition.booleanEquals(
-                    "$.checkerResult.instanceIsReady",
-                    true,
-                  ),
-                  runServerTask.next(updateDdbItem),
-                )
-                .otherwise(waitInLoop),
-            ),
-        ),
-      },
-    );
-    serverOrchestrationStateMachine.role.addToPrincipalPolicy(
+    const stateMachineDefinition = unwrapInput
+        .next(runInstance)
+        .next(checkInstanceStatus
+          .addRetry({
+            errors: ["InstanceNotReady"],
+            interval: Duration.seconds(5),
+            maxAttempts: 5,
+            maxDelay: Duration.seconds(10),
+            backoffRate: 2,
+          }))
+        .next(runServerTask)
+        .next(updateDdbItem);
+
+    const serverOrchestratorStateMachine = new StateMachine(this, "ServerOrchestrator", {
+        stateMachineType: StateMachineType.EXPRESS,
+        definitionBody: DefinitionBody.fromChainable(stateMachineDefinition),
+        logs: {
+          destination: new LogGroup(this, "ServerOrchestrator-id", {
+            logGroupName: "/aws/states/ServerOrchestrator",
+          }),
+          level: LogLevel.ALL,
+          includeExecutionData: true
+        },
+        tracingEnabled: true,
+    });
+    serverOrchestratorStateMachine.role.addToPrincipalPolicy(
       new PolicyStatement({
         actions: ["ecs:TagResource"],
         resources: ["*"],
       }),
     );
-    serverOrchestrationStateMachine.role.addToPrincipalPolicy(
+    serverOrchestratorStateMachine.role.addToPrincipalPolicy(
       new PolicyStatement({
         actions: ["iam:PassRole"],
         resources: [
@@ -252,8 +229,10 @@ export class ServerOrchestrationStack extends Stack {
       }),
     );
     props.provisioningHistoryTable.grantWriteData(
-      serverOrchestrationStateMachine,
+      serverOrchestratorStateMachine,
     );
+
+    //--------------------------------------------------------------
 
     const pipeRole = new Role(this, "PipeRole", {
       assumedBy: new ServicePrincipal("pipes.amazonaws.com"),
@@ -272,7 +251,7 @@ export class ServerOrchestrationStack extends Stack {
     pipeRole.addToPrincipalPolicy(
       new PolicyStatement({
         actions: ["states:StartExecution"],
-        resources: [serverOrchestrationStateMachine.stateMachineArn],
+        resources: [serverOrchestratorStateMachine.stateMachineArn],
       }),
     );
 
@@ -286,7 +265,7 @@ export class ServerOrchestrationStack extends Stack {
       source: new DynamoDBSource(props.provisioningHistoryTable, {
         startingPosition: DynamoDBStartingPosition.LATEST,
       }),
-      target: new SfnStateMachine(serverOrchestrationStateMachine, {
+      target: new SfnStateMachine(serverOrchestratorStateMachine, {
         invocationType: StateMachineInvocationType.FIRE_AND_FORGET,
         inputTransformation: InputTransformation.fromObject({
           serverId: DynamicInput.fromEventPath(

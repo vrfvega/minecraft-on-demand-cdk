@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"type": "module",
 	"bin": {
-		"minecraft-on-demand-cdk": "bin/app.js"
+		"minecraft-on-demand-cdk": "lib/app.js"
 	},
 	"scripts": {
 		"build": "tsc",
