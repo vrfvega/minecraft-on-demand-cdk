@@ -1,5 +1,6 @@
 import { Stack, type StackProps } from "aws-cdk-lib";
 import {
+  GatewayVpcEndpointAwsService,
   type ISecurityGroup,
   type IVpc,
   Peer,
@@ -26,6 +27,10 @@ export class NetworkStack extends Stack {
         { name: "PrivateIsolated", subnetType: SubnetType.PRIVATE_ISOLATED },
         { name: "Public", subnetType: SubnetType.PUBLIC },
       ],
+    });
+
+    this.vpc.addGatewayEndpoint("S3GatewayEndpoint", {
+      service: GatewayVpcEndpointAwsService.S3,
     });
 
     this.securityGroup = new SecurityGroup(this, "SecurityGroup", {
