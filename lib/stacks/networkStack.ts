@@ -36,7 +36,6 @@ export class NetworkStack extends Stack {
 
     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.HTTPS);
     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.HTTP);
-    this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.SSH);
 
     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(25565));
     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.udp(25565));

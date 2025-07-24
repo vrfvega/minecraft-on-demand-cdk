@@ -27,16 +27,6 @@ const storageStack = new StorageStack(app, "StorageStack", {
   ...commonDeploymentProps,
 });
 
-const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(
-  app,
-  "MinecraftOnDemandServiceStack",
-  {
-    ...commonDeploymentProps,
-    provisioningHistoryTable: storageStack.provisioningHistoryTable,
-  },
-);
-minecraftOnDemandServiceStack.node.addDependency(storageStack);
-
 const serverOrchestrationStack = new ServerOrchestrationStack(
   app,
   "ServerOrchestrationStack",
@@ -44,8 +34,21 @@ const serverOrchestrationStack = new ServerOrchestrationStack(
     ...commonDeploymentProps,
     vpc: networkStack.vpc,
     securityGroup: networkStack.securityGroup,
-    provisioningHistoryTable: storageStack.provisioningHistoryTable,
+    serverHistoryTable: storageStack.serverHistoryTable,
+    minecraftWorldsBucket: storageStack.minecraftWorldsBucket,
   },
 );
 serverOrchestrationStack.node.addDependency(networkStack);
 serverOrchestrationStack.node.addDependency(storageStack);
+
+const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(
+  app,
+  "MinecraftOnDemandServiceStack",
+  {
+    ...commonDeploymentProps,
+    serverHistoryTable: storageStack.serverHistoryTable,
+    clusterArn: serverOrchestrationStack.computeConstruct.cluster.clusterArn
+  },
+);
+minecraftOnDemandServiceStack.node.addDependency(storageStack);
+minecraftOnDemandServiceStack.node.addDependency(serverOrchestrationStack);

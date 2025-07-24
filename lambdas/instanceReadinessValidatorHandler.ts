@@ -9,7 +9,7 @@ import {
   InstanceCheckerEventSchema,
   type InstanceCheckerResponse,
   InstanceCheckerResponseSchema,
-} from "../../lib/schemas/instanceCheckerPayload.js";
+} from "../lib/schemas/instanceCheckerPayload.js";
 
 const ecsClient = new ECSClient();
 const ec2Client = new EC2Client();
@@ -48,7 +48,7 @@ export const handler = async (
 
   const containerInstanceArns = listResponse.containerInstanceArns!;
   if (containerInstanceArns.length === 0) {
-    throw new InstanceNotReadyError("The EC2 instance is still initializing")
+    throw new InstanceNotReadyError("The EC2 instance is still initializing");
   }
 
   const describeResponse = await ecsClient.send(
@@ -64,7 +64,7 @@ export const handler = async (
   );
 
   if (!match) {
-    throw new InstanceNotReadyError("The EC2 instance is still initializing")
+    throw new InstanceNotReadyError("The EC2 instance is still initializing");
   }
 
   return InstanceCheckerResponseSchema.parse({

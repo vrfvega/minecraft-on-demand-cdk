@@ -8,7 +8,7 @@ import { ZodError } from "zod";
 import {
   type ServerPayload,
   serverPayloadEntrySchema,
-} from "../../lib/schemas/serverPayload.js";
+} from "../lib/schemas/serverPayload.js";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 

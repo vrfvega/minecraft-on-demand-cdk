@@ -22,39 +22,46 @@ import {
   Role,
   ServicePrincipal,
 } from "aws-cdk-lib/aws-iam";
+import type { IBucket } from "aws-cdk-lib/aws-s3";
 import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
 
-export interface EcsConstructProps extends StackProps {
+export interface ComputeConstructProps extends StackProps {
   vpc: IVpc;
+  minecraftWorldsBucket: IBucket;
 }
 
 export class ComputeConstruct extends Construct {
-  public readonly cluster: Cluster;
-  public readonly taskDefinition: Ec2TaskDefinition;
-  public readonly containerDefinition: ContainerDefinition;
-  public readonly ecsOptimizedAmiArm64: string;
-  public readonly userData: UserData;
-  public readonly instanceRole: Role;
-  public readonly instanceProfile: InstanceProfile;
+  readonly cluster: Cluster;
+  readonly taskDefinition: Ec2TaskDefinition;
+  readonly containerDefinition: ContainerDefinition;
+  readonly ecsOptimizedAmiArm64: string;
+  readonly userData: UserData;
+  readonly instanceRole: Role;
+  readonly instanceProfile: InstanceProfile;
 
   private readonly securityGroup: ISecurityGroup;
 
-  constructor(scope: Construct, id: string, props: EcsConstructProps) {
+  constructor(scope: Construct, id: string, props: ComputeConstructProps) {
     super(scope, id);
-    const { vpc } = props;
 
     this.securityGroup = new SecurityGroup(this, "SecurityGroup", {
-      vpc,
+      vpc: props.vpc,
       allowAllOutbound: true,
       description: "Default SG for Minecraft servers",
     });
     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.allTraffic());
 
-    this.cluster = new Cluster(this, "Cluster", { vpc });
+    this.cluster = new Cluster(this, "Cluster", { vpc: props.vpc });
 
     this.taskDefinition = new Ec2TaskDefinition(this, "Ec2TaskDefinition", {
       networkMode: NetworkMode.BRIDGE,
+    });
+    this.taskDefinition.addVolume({
+      name: "MinecraftData",
+      host: {
+        sourcePath: "/minecraft_data",
+      },
     });
 
     this.containerDefinition = this.taskDefinition.addContainer(
@@ -87,6 +94,11 @@ export class ComputeConstruct extends Construct {
       { containerPort: 25565, hostPort: 25565, protocol: Protocol.TCP },
       { containerPort: 25565, hostPort: 25565, protocol: Protocol.UDP },
     );
+    this.containerDefinition.addMountPoints({
+      containerPath: "/data",
+      sourceVolume: "MinecraftData",
+      readOnly: false,
+    });
 
     this.ecsOptimizedAmiArm64 = StringParameter.valueForStringParameter(
       this,
@@ -94,10 +106,20 @@ export class ComputeConstruct extends Construct {
     );
 
     this.userData = UserData.forLinux();
-    this.userData.addCommands(
-      `echo ECS_CLUSTER=${this.cluster.clusterName} >> /etc/ecs/ecs.config`,
-      "mkdir -p /var/log/ecs",
-    );
+    this.userData.addCommands(`
+      set -e
+      sudo systemctl mask ecs
+      mkdir -p /var/log/ecs /var/log/minecraft /minecraft_data
+      export LOG_FILE=/var/log/minecraft/server.log
+      touch $LOG_FILE
+      exec > >(tee -a $LOG_FILE) 2>&1
+      export TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+      export USER_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/tags/instance/userId)
+      aws s3 sync s3://${props.minecraftWorldsBucket.bucketName}/$USER_ID /minecraft_data --only-show-errors --no-progress
+      echo ECS_CLUSTER=${this.cluster.clusterName} >> /etc/ecs/ecs.config
+      sudo systemctl unmask ecs
+      sudo systemctl enable --now --no-block ecs
+    `);
 
     this.instanceRole = new Role(this, "EC2InstanceRole", {
       assumedBy: new ServicePrincipal("ec2.amazonaws.com"),
@@ -113,5 +135,8 @@ export class ComputeConstruct extends Construct {
     this.instanceProfile = new InstanceProfile(this, "EC2InstanceProfile", {
       role: this.instanceRole,
     });
+
+    props.minecraftWorldsBucket.grantReadWrite(this.instanceRole);
+    props.minecraftWorldsBucket.grantReadWrite(this.instanceRole);
   }
 }
