@@ -1,5 +1,6 @@
 import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
-import {ECSClient, StopTaskCommand} from "@aws-sdk/client-ecs";
+import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
+import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import middy from "@middy/core";
 import httpCors from "@middy/http-cors";
@@ -57,9 +58,23 @@ export const lambdaFunction = async (
         new StopTaskCommand({
           cluster: CLUSTER_ARN,
           task: serverHistoryItem.taskArn,
-          reason: "Requested by user"
-        })
-      )
+          reason: "Requested by user",
+        }),
+      );
+
+      await ddbClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            serverId: serverId,
+            startedAt: serverHistoryItem.startedAt,
+          },
+          UpdateExpression: "SET serverStatus = :ss",
+          ExpressionAttributeValues: {
+            ":ss": "STOPPING",
+          },
+        }),
+      );
     }
 
     return {

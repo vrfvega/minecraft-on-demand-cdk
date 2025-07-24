@@ -6,11 +6,11 @@ import {
   TokenAuthorizer,
 } from "aws-cdk-lib/aws-apigateway";
 import type { ITableV2 } from "aws-cdk-lib/aws-dynamodb";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import type { Construct } from "constructs";
 import { USER_ID_INDEX_NAME } from "../constants.js";
-import {PolicyStatement} from "aws-cdk-lib/aws-iam";
 
 export interface MinecraftOnDemandServiceStackProps extends StackProps {
   serverHistoryTable: ITableV2;
@@ -120,11 +120,10 @@ export class MinecraftOnDemandServiceStack extends Stack {
     );
     props.serverHistoryTable.grantReadData(getServerStatusHandler);
 
-    serverIdResource
-      .addMethod(
-        "GET",
-        new LambdaIntegration(getServerStatusHandler, { proxy: true }),
-      );
+    serverIdResource.addMethod(
+      "GET",
+      new LambdaIntegration(getServerStatusHandler, { proxy: true }),
+    );
 
     const getServerHistoryHandler = new NodejsFunction(
       this,
@@ -170,7 +169,7 @@ export class MinecraftOnDemandServiceStack extends Stack {
         ).pathname,
         environment: {
           TABLE_NAME: props.serverHistoryTable.tableName,
-          CLUSTER_ARN: props.clusterArn
+          CLUSTER_ARN: props.clusterArn,
         },
         bundling: {
           minify: true,
@@ -183,15 +182,14 @@ export class MinecraftOnDemandServiceStack extends Stack {
     stopServerTaskHandler.addToRolePolicy(
       new PolicyStatement({
         actions: ["ecs:stopTask"],
-        resources: ["*"]
-      })
-    )
-    props.serverHistoryTable.grantReadData(stopServerTaskHandler);
+        resources: ["*"],
+      }),
+    );
+    props.serverHistoryTable.grantReadWriteData(stopServerTaskHandler);
 
-    serverIdResource
-      .addMethod(
-        "DELETE",
-        new LambdaIntegration(stopServerTaskHandler, { proxy: true }),
-      );
+    serverIdResource.addMethod(
+      "DELETE",
+      new LambdaIntegration(stopServerTaskHandler, { proxy: true }),
+    );
   }
 }

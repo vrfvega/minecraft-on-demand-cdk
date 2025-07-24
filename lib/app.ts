@@ -47,7 +47,7 @@ const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(
   {
     ...commonDeploymentProps,
     serverHistoryTable: storageStack.serverHistoryTable,
-    clusterArn: serverOrchestrationStack.computeConstruct.cluster.clusterArn
+    clusterArn: serverOrchestrationStack.computeConstruct.cluster.clusterArn,
   },
 );
 minecraftOnDemandServiceStack.node.addDependency(storageStack);
