@@ -7,7 +7,10 @@ import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
 import type { IBucket } from "aws-cdk-lib/aws-s3";
 import {
+  Choice,
+  Condition,
   DefinitionBody,
+  Fail,
   type IChainable,
   IntegrationPattern,
   JsonPath,
@@ -16,6 +19,8 @@ import {
   StateMachine,
   StateMachineType,
   TaskInput,
+  Wait,
+  WaitTime,
 } from "aws-cdk-lib/aws-stepfunctions";
 import {
   CallAwsService,
@@ -116,17 +121,26 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
       }),
     );
 
-    const checkInstanceStatus = new LambdaInvoke(
+    const waitForInstance = new Wait(this, "Wait for instance", {
+      time: WaitTime.duration(Duration.seconds(10)),
+    });
+
+    const getInstanceStatus = new LambdaInvoke(this, "Get instance status", {
+      lambdaFunction: instanceReadinessValidator,
+      payloadResponseOnly: true,
+      payload: TaskInput.fromObject({
+        clusterName: props.computeConstruct.cluster.clusterName,
+        ec2InstanceId: JsonPath.stringAt("$.runInstanceResult.InstanceId"),
+      }),
+      resultPath: "$.checkerResult",
+    });
+
+    const serverProvisioningFailed = new Fail(
       this,
-      "Check instance status",
+      "Server provisioning failed",
       {
-        lambdaFunction: instanceReadinessValidator,
-        payloadResponseOnly: true,
-        payload: TaskInput.fromObject({
-          clusterName: props.computeConstruct.cluster.clusterName,
-          ec2InstanceId: JsonPath.stringAt("$.runInstanceResult.InstanceId"),
-        }),
-        resultPath: "$.checkerResult",
+        cause: "Server provisioning failed",
+        error: "Instance did not become ready in the alloted time.",
       },
     );
 
@@ -206,24 +220,30 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
       resultPath: JsonPath.DISCARD,
     });
 
+    const successChain = runServerTask.next(updateDdbItem);
+
+    const isInstanceReady = new Choice(this, "Is instance ready?")
+      .when(
+        Condition.booleanEquals("$.checkerResult.instanceIsReady", true),
+        successChain,
+      )
+      .when(
+        Condition.booleanEquals("$.checkerResult.instanceIsReady", false),
+        waitForInstance,
+      )
+      .otherwise(serverProvisioningFailed);
+
     this.definition = unwrapInput
       .next(runInstance)
-      .next(
-        checkInstanceStatus.addRetry({
-          errors: ["InstanceNotReady"],
-          interval: Duration.seconds(5),
-          maxAttempts: 10,
-          maxDelay: Duration.seconds(10),
-          backoffRate: 2,
-        }),
-      )
-      .next(runServerTask)
-      .next(updateDdbItem);
+      .next(waitForInstance)
+      .next(getInstanceStatus)
+      .next(isInstanceReady);
 
     this.stateMachine = new StateMachine(this, `${id}-StateMachine`, {
       stateMachineName: `${id}`,
-      stateMachineType: StateMachineType.EXPRESS,
       definitionBody: DefinitionBody.fromChainable(this.definition),
+      stateMachineType: StateMachineType.STANDARD,
+      timeout: Duration.minutes(1),
       logs: {
         destination: new LogGroup(this, `${id}-id`, {
           logGroupName: `/aws/states/${id}`,

@@ -14,13 +14,6 @@ import {
 const ecsClient = new ECSClient();
 const ec2Client = new EC2Client();
 
-class InstanceNotReadyError extends Error {
-  constructor(msg: string) {
-    super(msg);
-    this.name = "InstanceNotReady";
-  }
-}
-
 const getPublicIp = async (ec2InstanceId: string): Promise<string | null> => {
   const { Reservations } = await ec2Client.send(
     new DescribeInstancesCommand({ InstanceIds: [ec2InstanceId] }),
@@ -47,8 +40,13 @@ export const handler = async (
   );
 
   const containerInstanceArns = listResponse.containerInstanceArns!;
+
   if (containerInstanceArns.length === 0) {
-    throw new InstanceNotReadyError("The EC2 instance is still initializing");
+    return InstanceCheckerResponseSchema.parse({
+      instanceIsReady: false,
+      containerInstanceArn: null,
+      publicIp: null,
+    });
   }
 
   const describeResponse = await ecsClient.send(
@@ -62,10 +60,6 @@ export const handler = async (
   const match = containerInstances.find(
     (instance) => instance.ec2InstanceId === ec2InstanceId,
   );
-
-  if (!match) {
-    throw new InstanceNotReadyError("The EC2 instance is still initializing");
-  }
 
   return InstanceCheckerResponseSchema.parse({
     instanceIsReady: Boolean(match),
