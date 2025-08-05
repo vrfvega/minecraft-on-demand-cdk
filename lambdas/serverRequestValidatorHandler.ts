@@ -1,56 +1,86 @@
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
-import { marshall } from "@aws-sdk/util-dynamodb";
+import { Logger } from "@aws-lambda-powertools/logger";
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  PutItemCommand,
+} from "@aws-sdk/client-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import middy from "@middy/core";
 import httpCors from "@middy/http-cors";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { customAlphabet } from "nanoid";
 import { ZodError } from "zod";
-import {
-  type ServerPayload,
-  serverPayloadEntrySchema,
-} from "../lib/schemas/serverPayload.js";
 
-const TABLE_NAME = process.env.TABLE_NAME!;
+const SERVER_HISTORY_TABLE_NAME = process.env.SERVER_HISTORY_TABLE_NAME!;
+const SERVER_CONFIGURATIONS_TABLE_NAME = process.env.SERVER_CONFIGURATIONS_TABLE_NAME!;
 
-const client = new DynamoDBClient();
+const ddbClient = new DynamoDBClient();
+const logger = new Logger({ serviceName: "ServerRequestValidator" });
 
-function createServerConfig(detail: ServerPayload) {
-  return {
-    version: detail.version,
-    type: detail.type,
-  };
+interface ServerConfigurationItem {
+  userId: string;
+  configuration: Record<string, string>;
+  updatedAt: number;
+}
+
+async function getServerConfiguration(userId: string) {
+  const { Item } = await ddbClient.send(
+    new GetItemCommand({
+      TableName: SERVER_CONFIGURATIONS_TABLE_NAME,
+      Key: marshall({ userId }),
+      ConsistentRead: true,
+    }),
+  );
+  if (!Item) return undefined;
+
+  const serverConfigurationItem = unmarshall(Item) as ServerConfigurationItem;
+  return serverConfigurationItem.configuration;
 }
 
 export const lambdaHandler = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
   try {
-    const detail = serverPayloadEntrySchema.parse(JSON.parse(event.body!));
+    const userId = event.requestContext.authorizer?.userId;
+    if (!userId) {
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ message: "Unauthorized" }),
+      };
+    }
+
     const nanoidGenerator = customAlphabet(
       "0123456789abcdefghijklmnopqrstuvwxyz",
       12,
     );
     const partitionKey = nanoidGenerator();
 
-    const params = {
-      TableName: TABLE_NAME,
-      Item: marshall({
-        serverId: partitionKey,
-        startedAt: Date.now(),
-        endedAt: null,
-        publicIp: null,
-        serverConfig: createServerConfig(detail),
-        serverStatus: "PENDING",
-        userId: detail.userId,
-        taskArn: null,
-        instanceId: null,
-        containerInstanceArn: null,
-      }),
-      ConditionExpression: "attribute_not_exists(serverId)",
-    };
+    const serverConfiguration = await getServerConfiguration(userId);
+    if (!serverConfiguration) {
+      return {
+        statusCode: 404,
+        body: JSON.stringify({ message: "Not Found" }),
+      };
+    }
 
-    const command = new PutItemCommand(params);
-    await client.send(command);
+    await ddbClient.send(
+      new PutItemCommand({
+        TableName: SERVER_HISTORY_TABLE_NAME,
+        Item: marshall({
+          serverId: partitionKey,
+          startedAt: Date.now(),
+          endedAt: null,
+          publicIp: null,
+          serverConfig: serverConfiguration,
+          serverStatus: "PENDING",
+          userId: userId,
+          taskArn: null,
+          instanceId: null,
+          containerInstanceArn: null,
+        }),
+        ConditionExpression: "attribute_not_exists(serverId)",
+      }),
+    );
 
     return {
       statusCode: 202,
@@ -60,17 +90,17 @@ export const lambdaHandler = async (
         location: `/servers/${partitionKey}`,
       }),
     };
-  } catch (err) {
-    if (err instanceof ZodError) {
+  } catch (error: unknown) {
+    if (error instanceof ZodError) {
       return {
         statusCode: 400,
         body: JSON.stringify({
           error: "Invalid request",
-          details: err.errors,
+          details: error.errors,
         }),
       };
     }
-    console.error("Handler error:", err);
+    logger.error("Handler error:", { error });
     return {
       statusCode: 500,
       body: JSON.stringify({ error: "Internal Server Error" }),

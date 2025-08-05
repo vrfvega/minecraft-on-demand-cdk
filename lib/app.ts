@@ -47,6 +47,8 @@ const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(
   {
     ...commonDeploymentProps,
     serverHistoryTable: storageStack.serverHistoryTable,
+    serverConfigurationTable: storageStack.serverConfigurationTable,
+    minecraftWorldsBucket: storageStack.minecraftWorldsBucket,
     clusterArn: serverOrchestrationStack.computeConstruct.cluster.clusterArn,
   },
 );

@@ -32,7 +32,10 @@
 		"@aws-sdk/client-dynamodb": "^3.840.0",
 		"@aws-sdk/client-ec2": "^3.844.0",
 		"@aws-sdk/client-ecs": "^3.844.0",
+		"@aws-sdk/client-s3": "^3.859.0",
+		"@aws-sdk/client-sfn": "^3.859.0",
 		"@aws-sdk/lib-dynamodb": "^3.840.0",
+		"@ctrl/ts-base32": "^4.0.0",
 		"@middy/core": "^6.4.1",
 		"@middy/http-cors": "^6.4.1",
 		"aws-cdk-lib": "2.204.0",
@@ -42,6 +45,7 @@
 		"jsonwebtoken": "^9.0.2",
 		"jwks-rsa": "^3.2.0",
 		"nanoid": "^3.3.11",
+		"uint8array-extras": "^1.4.0",
 		"zod": "^3.25.74"
 	}
 }

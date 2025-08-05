@@ -30,6 +30,7 @@ function generateIamPolicy(
     },
     context: {
       source: "supabase-jwt-authorizer",
+      userId: principalId
     },
   };
 }

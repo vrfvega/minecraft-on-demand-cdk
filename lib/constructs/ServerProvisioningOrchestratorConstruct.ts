@@ -9,8 +9,7 @@ import type { IBucket } from "aws-cdk-lib/aws-s3";
 import {
   Choice,
   Condition,
-  DefinitionBody,
-  Fail,
+  DefinitionBody, Fail,
   type IChainable,
   IntegrationPattern,
   JsonPath,
@@ -18,9 +17,7 @@ import {
   Pass,
   StateMachine,
   StateMachineType,
-  TaskInput,
-  Wait,
-  WaitTime,
+  TaskInput, Wait, WaitTime,
 } from "aws-cdk-lib/aws-stepfunctions";
 import {
   CallAwsService,
@@ -122,7 +119,7 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
     );
 
     const waitForInstance = new Wait(this, "Wait for instance", {
-      time: WaitTime.duration(Duration.seconds(10)),
+      time: WaitTime.duration(Duration.seconds(5)),
     });
 
     const getInstanceStatus = new LambdaInvoke(this, "Get instance status", {
@@ -167,14 +164,26 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
             {
               Name: props.computeConstruct.containerDefinition.containerName,
               Environment: [
-                {
-                  Name: "TYPE",
-                  Value: JsonPath.stringAt("$.serverConfig.type"),
-                },
-                {
-                  Name: "VERSION",
-                  Value: JsonPath.stringAt("$.serverConfig.version"),
-                },
+                { Name: "TYPE", Value: JsonPath.stringAt("$.serverConfig.type") },
+                { Name: "VERSION", Value: JsonPath.stringAt("$.serverConfig.version") },
+                { Name: "ALLOW_FLIGHT", Value: JsonPath.stringAt("$.serverConfig.allow_flight") },
+                { Name: "ALLOW_NETHER", Value: JsonPath.stringAt("$.serverConfig.allow_nether") },
+                { Name: "DIFFICULTY", Value: JsonPath.stringAt("$.serverConfig.difficulty") },
+                { Name: "GENERATE_STRUCTURES", Value: JsonPath.stringAt("$.serverConfig.generate_structures") },
+                { Name: "HARDCORE", Value: JsonPath.stringAt("$.serverConfig.hardcore") },
+                { Name: "LEVEL_TYPE", Value: JsonPath.stringAt("$.serverConfig.level_type") },
+                { Name: "MAX_PLAYERS", Value: JsonPath.stringAt("$.serverConfig.max_players") },
+                { Name: "MODE", Value: JsonPath.stringAt("$.serverConfig.mode") },
+                { Name: "NETWORK_COMPRESSION_THRESHOLD", Value: JsonPath.stringAt("$.serverConfig.network_compression_threshold") },
+                { Name: "ONLINE_MODE", Value: JsonPath.stringAt("$.serverConfig.online_mode") },
+                { Name: "SEED", Value: JsonPath.stringAt("$.serverConfig.seed") },
+                { Name: "SIMULATION_DISTANCE", Value: JsonPath.stringAt("$.serverConfig.simulation_distance") },
+                { Name: "SPAWN_ANIMALS", Value: JsonPath.stringAt("$.serverConfig.spawn_animals") },
+                { Name: "SPAWN_MONSTERS", Value: JsonPath.stringAt("$.serverConfig.spawn_monsters") },
+                { Name: "SPAWN_NPCS", Value: JsonPath.stringAt("$.serverConfig.spawn_npcs") },
+                { Name: "SPAWN_PROTECTION", Value: JsonPath.stringAt("$.serverConfig.spawn_protection") },
+                { Name: "SYNC_CHUNK_WRITES", Value: JsonPath.stringAt("$.serverConfig.sync_chunk_writes") },
+                { Name: "VIEW_DISTANCE", Value: JsonPath.stringAt("$.serverConfig.view_distance") },
               ],
             },
           ],

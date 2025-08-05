@@ -188,7 +188,7 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
       updateExpression: "SET serverStatus = :ss, endedAt = :ea",
       expressionAttributeValues: {
         ":ss": DynamoAttributeValue.fromString("STOPPED"),
-        ":ea": DynamoAttributeValue.fromString(
+        ":ea": DynamoAttributeValue.numberFromString(
           JsonPath.stringAt("$.getCurrentTime.CurrentTime"),
         ),
       },

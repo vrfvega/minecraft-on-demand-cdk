@@ -13,8 +13,6 @@ export const lambdaHandler = async (
 ): Promise<APIGatewayProxyResult> => {
   try {
     const serverId = event.pathParameters?.serverId;
-    const debugMode =
-      event.queryStringParameters?.debug?.toLowerCase() === "true";
 
     if (!serverId) {
       return {
@@ -47,16 +45,14 @@ export const lambdaHandler = async (
     }
 
     const item = unmarshall(queryResponse.Items[0]);
-    const endpointResponseBody = debugMode
-      ? item
-      : {
-          serverId: item.serverId,
-          startedAt: item.startedAt,
-          endedAt: item.endedAt,
-          serverStatus: item.serverStatus,
-          serverConfig: item.serverConfig,
-          publicIp: item.publicIp,
-        };
+    const endpointResponseBody = {
+      serverId: item.serverId,
+      startedAt: item.startedAt,
+      endedAt: item.endedAt,
+      serverStatus: item.serverStatus,
+      serverConfig: item.serverConfig,
+      publicIp: item.publicIp,
+    };
 
     return {
       statusCode: 200,

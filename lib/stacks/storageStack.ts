@@ -17,6 +17,7 @@ import { USER_ID_INDEX_NAME } from "../constants.js";
 
 export class StorageStack extends Stack {
   readonly serverHistoryTable: ITableV2;
+  readonly serverConfigurationTable: ITableV2;
   readonly minecraftWorldsBucket: IBucket;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -36,6 +37,14 @@ export class StorageStack extends Stack {
           sortKey: { name: "startedAt", type: AttributeType.NUMBER },
         },
       ],
+    });
+
+    this.serverConfigurationTable = new TableV2(this, "ServerConfiguration", {
+      tableName: "ServerConfiguration",
+      partitionKey: { name: "userId", type: AttributeType.STRING },
+      billing: Billing.onDemand(),
+      deletionProtection: true,
+      removalPolicy: RemovalPolicy.RETAIN,
     });
 
     const minecraftWorldsAccessLogsBucket = new Bucket(

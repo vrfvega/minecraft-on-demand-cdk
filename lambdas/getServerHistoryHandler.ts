@@ -1,8 +1,10 @@
 import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
+import { base32Decode, base32Encode } from '@ctrl/ts-base32';
 import middy from "@middy/core";
 import httpCors from "@middy/http-cors";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import {stringToUint8Array, uint8ArrayToString} from "uint8array-extras";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 const USER_ID_INDEX_NAME = process.env.USER_ID_INDEX_NAME!;
@@ -13,19 +15,9 @@ export const lambdaFunction = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
   try {
-    const userId = event.queryStringParameters?.userId;
+    const userId = event.requestContext.authorizer?.userId;
+    const afterKey = event.queryStringParameters?.afterKey;
     const limit = event.queryStringParameters?.limit;
-    const debugMode =
-      event.queryStringParameters?.debug?.toLowerCase() === "true";
-
-    if (!userId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          message: "userId is required as query parameter",
-        }),
-      };
-    }
 
     const queryResponse = await ddbClient.send(
       new QueryCommand({
@@ -37,19 +29,23 @@ export const lambdaFunction = async (
             S: userId,
           },
         },
+        ExclusiveStartKey: afterKey ? JSON.parse(uint8ArrayToString(base32Decode(afterKey))) : undefined,
         Limit: limit ? Math.min(parseInt(limit), 100) : 10,
         ScanIndexForward: false,
         ConsistentRead: false,
       }),
     );
 
+    let lastEvaluatedKey: string | undefined;
+    if (queryResponse.LastEvaluatedKey) {
+      lastEvaluatedKey = base32Encode(stringToUint8Array(JSON.stringify(queryResponse.LastEvaluatedKey)));
+    }
+
     const serverHistoryItems = (queryResponse.Items ?? []).map((item) =>
       unmarshall(item),
     );
 
-    const endpointResponseBody = debugMode
-      ? serverHistoryItems
-      : serverHistoryItems.map(
+    const items = serverHistoryItems.map(
           ({
             serverId,
             startedAt,
@@ -69,7 +65,9 @@ export const lambdaFunction = async (
 
     return {
       statusCode: 200,
-      body: JSON.stringify(endpointResponseBody),
+      body: JSON.stringify({
+        items, lastEvaluatedKey
+      }),
     };
   } catch (error: unknown) {
     return {
