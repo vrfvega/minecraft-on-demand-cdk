@@ -1,0 +1,335 @@
+openapi: 3.0.3
+info:
+  title: Minecraft On-Demand API
+  version: 1.0.0
+  description: API for managing on-demand Minecraft servers, per-user server configuration, and storage lifecycle.
+servers:
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com/{stage}
+    variables:
+      apiId:
+        default: your-api-id
+      region:
+        default: us-east-1
+      stage:
+        default: prod
+security:
+  - bearerAuth: []
+tags:
+  - name: Servers
+  - name: Configuration
+  - name: Storage
+paths:
+  /servers:
+    get:
+      tags: [Servers]
+      summary: List server history for the authenticated user
+      operationId: listServers
+      parameters:
+        - name: afterKey
+          in: query
+          description: Pagination cursor returned as `lastEvaluatedKey` from the previous page.
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Page size (max 100). Defaults to 10.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            maximum: 100
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerHistoryListResponse'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [Servers]
+      summary: Start a new Minecraft server for the authenticated user
+      operationId: startServer
+      description: |
+        Starts a new server using the caller's saved configuration.
+        No request body is required. Returns a server identifier and status `PENDING`.
+      responses:
+        '202':
+          description: Accepted; server creation initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartServerAccepted'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404':
+          description: Server configuration not found for the user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /servers/{serverId}:
+    parameters:
+      - name: serverId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Servers]
+      summary: Get status of a specific server
+      operationId: getServerStatus
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerStatusResponse'
+        '404':
+          description: Server not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Servers]
+      summary: Request stop of a running server
+      operationId: stopServer
+      responses:
+        '202':
+          description: Accepted; stop requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopServerAccepted'
+        '404':
+          description: Server not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /server-configuration:
+    get:
+      tags: [Configuration]
+      summary: Get the caller's saved server configuration
+      operationId: getServerConfiguration
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerConfiguration'
+        '404':
+          description: Configuration not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [Configuration]
+      summary: Create or update the caller's server configuration
+      operationId: putServerConfiguration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerConfiguration'
+      responses:
+        '200':
+          description: Upsert success
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Raw DynamoDB PutItem response
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /storage:
+    delete:
+      tags: [Storage]
+      summary: Delete all S3 objects under the caller's storage prefix
+      operationId: deleteStorage
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      additionalProperties: false
+      example:
+        message: Unauthorized
+    ServerConfiguration:
+      type: object
+      additionalProperties:
+        type: string
+      properties:
+        version:
+          type: string
+        type:
+          type: string
+          enum: [VANILLA, FABRIC, FORGE, SPIGOT, PAPER]
+        spawn_protection:
+          type: string
+          default: '16'
+        seed:
+          type: string
+          maxLength: 32
+          default: ''
+        hardcore:
+          type: string
+          enum: ['true', 'false']
+          default: 'false'
+        allow_flight:
+          type: string
+          enum: ['TRUE', 'FALSE']
+          default: 'FALSE'
+        allow_nether:
+          type: string
+          enum: ['true', 'false']
+          default: 'true'
+        spawn_monsters:
+          type: string
+          enum: ['true', 'false']
+          default: 'true'
+        online_mode:
+          type: string
+          enum: ['true', 'false']
+          default: 'true'
+        generate_structures:
+          type: string
+          enum: ['true', 'false']
+          default: 'true'
+        level_type:
+          type: string
+          enum: [
+            'minecraft:normal',
+            'minecraft:flat',
+            'minecraft:large_biomes',
+            'minecraft:amplified'
+          ]
+          default: 'minecraft:normal'
+        network_compression_threshold:
+          type: string
+          default: '256'
+        simulation_distance:
+          type: string
+          default: '4'
+        difficulty:
+          type: string
+          enum: [peaceful, easy, normal, hard]
+          default: easy
+        mode:
+          type: string
+          enum: [creative, survival, adventure]
+          default: creative
+        spawn_animals:
+          type: string
+          enum: ['true', 'false']
+          default: 'true'
+        view_distance:
+          type: string
+          default: '8'
+        max_players:
+          type: string
+          default: '20'
+        sync_chunk_writes:
+          type: string
+          enum: ['true', 'false']
+          default: 'true'
+        spawn_npcs:
+          type: string
+          enum: ['true', 'false']
+          default: 'true'
+    ServerStatusResponse:
+      type: object
+      properties:
+        serverId:
+          type: string
+        startedAt:
+          type: integer
+          format: int64
+        endedAt:
+          type: integer
+          format: int64
+          nullable: true
+        serverStatus:
+          type: string
+          example: PENDING
+        serverConfig:
+          $ref: '#/components/schemas/ServerConfiguration'
+        publicIp:
+          type: string
+          nullable: true
+      required: [serverId, startedAt, serverStatus]
+    ServerHistoryItem:
+      allOf:
+        - $ref: '#/components/schemas/ServerStatusResponse'
+    ServerHistoryListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerHistoryItem'
+        lastEvaluatedKey:
+          type: string
+          description: Pagination cursor for next page
+      required: [items]
+    StartServerAccepted:
+      type: object
+      properties:
+        serverId:
+          type: string
+        serverStatus:
+          type: string
+          example: PENDING
+        location:
+          type: string
+          description: Path to poll for server status
+      required: [serverId, serverStatus, location]
+    StopServerAccepted:
+      type: object
+      properties:
+        location:
+          type: string
+          description: Path to poll for server status
+      required: [location]
+
