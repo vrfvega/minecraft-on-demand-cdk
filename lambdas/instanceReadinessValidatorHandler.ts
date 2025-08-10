@@ -1,69 +1,70 @@
-import { DescribeInstancesCommand, EC2Client } from "@aws-sdk/client-ec2";
 import {
-  DescribeContainerInstancesCommand,
+  DescribeNetworkInterfacesCommand,
+  EC2Client,
+} from "@aws-sdk/client-ec2";
+import {
+  DescribeTasksCommand,
   ECSClient,
-  ListContainerInstancesCommand,
+  type Task,
 } from "@aws-sdk/client-ecs";
 import {
-  type InstanceCheckerEvent,
-  InstanceCheckerEventSchema,
-  type InstanceCheckerResponse,
-  InstanceCheckerResponseSchema,
+  type ServerCheckerEvent,
+  ServerCheckerEventSchema,
+  type ServerCheckerResponse,
+  ServerCheckerResponseSchema,
 } from "../lib/schemas/instanceCheckerPayload.js";
 
 const ecsClient = new ECSClient();
 const ec2Client = new EC2Client();
 
-const getPublicIp = async (ec2InstanceId: string): Promise<string | null> => {
-  const { Reservations } = await ec2Client.send(
-    new DescribeInstancesCommand({ InstanceIds: [ec2InstanceId] }),
+function getNetworkInterfaceId(task: Task | null): string | null {
+  if (!task) return null;
+
+  const eniAtt = task.attachments?.find(
+    (a) => a.type === "ElasticNetworkInterface",
   );
-  const instance = Reservations?.[0]?.Instances?.[0];
   return (
-    instance?.PublicIpAddress ??
-    instance?.NetworkInterfaces?.[0]?.Association?.PublicIp ??
-    null
+    eniAtt?.details?.find((d) => d.name === "networkInterfaceId")?.value ?? null
   );
-};
+}
 
-export const handler = async (
-  event: InstanceCheckerEvent,
-): Promise<InstanceCheckerResponse> => {
-  const { clusterName, ec2InstanceId } =
-    InstanceCheckerEventSchema.parse(event);
+async function getPublicIp(
+  networkInterfaceId: string | null,
+): Promise<string | null> {
+  if (!networkInterfaceId) return null;
 
-  const listResponse = await ecsClient.send(
-    new ListContainerInstancesCommand({
-      cluster: clusterName,
-      status: "ACTIVE",
+  const { NetworkInterfaces } = await ec2Client.send(
+    new DescribeNetworkInterfacesCommand({
+      NetworkInterfaceIds: [networkInterfaceId],
     }),
   );
 
-  const containerInstanceArns = listResponse.containerInstanceArns!;
+  return NetworkInterfaces?.[0]?.Association?.PublicIp ?? null;
+}
 
-  if (containerInstanceArns.length === 0) {
-    return InstanceCheckerResponseSchema.parse({
-      instanceIsReady: false,
-      containerInstanceArn: null,
+export const handler = async (
+  event: ServerCheckerEvent,
+): Promise<ServerCheckerResponse> => {
+  const { clusterName, taskArn } = ServerCheckerEventSchema.parse(event);
+
+  const { tasks } = await ecsClient.send(
+    new DescribeTasksCommand({
+      cluster: clusterName,
+      tasks: [taskArn],
+    }),
+  );
+
+  if (!tasks || tasks.length === 0) {
+    return ServerCheckerResponseSchema.parse({
+      isServerReady: false,
       publicIp: null,
     });
   }
 
-  const describeResponse = await ecsClient.send(
-    new DescribeContainerInstancesCommand({
-      cluster: clusterName,
-      containerInstances: containerInstanceArns,
-    }),
-  );
-
-  const containerInstances = describeResponse.containerInstances!;
-  const match = containerInstances.find(
-    (instance) => instance.ec2InstanceId === ec2InstanceId,
-  );
-
-  return InstanceCheckerResponseSchema.parse({
-    instanceIsReady: Boolean(match),
-    containerInstanceArn: match?.containerInstanceArn ?? null,
-    publicIp: match ? await getPublicIp(ec2InstanceId) : null,
+  return ServerCheckerResponseSchema.parse({
+    isServerReady: tasks?.[0]?.lastStatus === "RUNNING",
+    publicIp: await getPublicIp(
+      getNetworkInterfaceId(tasks?.[0] ?? null) ?? null,
+    ),
   });
 };

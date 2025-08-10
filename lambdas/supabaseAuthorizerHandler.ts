@@ -30,7 +30,7 @@ function generateIamPolicy(
     },
     context: {
       source: "supabase-jwt-authorizer",
-      userId: principalId
+      userId: principalId,
     },
   };
 }
@@ -43,8 +43,8 @@ export const handler = async (
     const jwt = event.authorizationToken?.split(" ")[1];
     const { payload } = await jwtVerify(jwt, SUPABASE_LEGACY_JWT_SECRET);
     const principalId = payload.sub!;
-
-    return generateIamPolicy(principalId, "Allow", event.methodArn);
+    const apiWildcardArn = `${event.methodArn.split("/")[0]}/*/*/*`;
+    return generateIamPolicy(principalId, "Allow", apiWildcardArn);
   } catch (error: unknown) {
     logger.error("JWT verification failed", {
       error: error instanceof Error ? error.message : String(error),

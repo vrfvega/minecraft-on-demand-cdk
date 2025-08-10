@@ -1,0 +1,2409 @@
+diff --git a/docs/openapi.yaml b/docs/openapi.yaml
+index 44fb80e..374148e 100644
+--- a/docs/openapi.yaml
++++ b/docs/openapi.yaml
+@@ -18,6 +18,7 @@ tags:
+   - name: Servers
+   - name: Configuration
+   - name: Storage
++  - name: Modpacks
+ paths:
+   /servers:
+     get:
+@@ -166,8 +167,126 @@ paths:
+                 properties:
+                   message:
+                     type: string
++        '204':
++          description: No Content
+         '401': { $ref: '#/components/responses/UnauthorizedError' }
+         '500': { $ref: '#/components/responses/InternalServerError' }
++  /modpacks:
++    get:
++      tags: [Modpacks]
++      summary: List modpacks for the authenticated user
++      operationId: listModpacks
++      parameters:
++        - name: afterKey
++          in: query
++          description: Pagination cursor returned as `lastEvaluatedKey` from the previous page.
++          required: false
++          schema:
++            type: string
++        - name: limit
++          in: query
++          description: Page size (max 100). Defaults to 10.
++          required: false
++          schema:
++            type: integer
++            format: int32
++            maximum: 100
++      responses:
++        '200':
++          description: Success
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/ModpackListResponse'
++        '401': { $ref: '#/components/responses/UnauthorizedError' }
++        '500': { $ref: '#/components/responses/InternalServerError' }
++    post:
++      tags: [Modpacks]
++      summary: Create a new modpack
++      operationId: createModpack
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/PostModpackPayload'
++      responses:
++        '200':
++          description: Created
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/CreateModpackResponse'
++        '401': { $ref: '#/components/responses/UnauthorizedError' }
++        '500': { $ref: '#/components/responses/InternalServerError' }
++  /modpacks/{modpackId}:
++    parameters:
++      - name: modpackId
++        in: path
++        required: true
++        schema:
++          type: string
++    get:
++      tags: [Modpacks]
++      summary: Get a modpack by ID
++      operationId: getModpackById
++      responses:
++        '200':
++          description: OK
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/Modpack'
++        '400': { $ref: '#/components/responses/BadRequestError' }
++        '401': { $ref: '#/components/responses/UnauthorizedError' }
++        '404':
++          description: Not Found
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/ErrorResponse' }
++        '500': { $ref: '#/components/responses/InternalServerError' }
++    put:
++      tags: [Modpacks]
++      summary: Update a modpack by ID
++      operationId: updateModpackById
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/PutModpackPayload'
++      responses:
++        '200':
++          description: Updated
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/UpdateModpackResponse'
++        '400': { $ref: '#/components/responses/BadRequestError' }
++        '401': { $ref: '#/components/responses/UnauthorizedError' }
++        '403': { $ref: '#/components/responses/ForbiddenError' }
++        '404':
++          description: Not Found
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/ErrorResponse' }
++        '500': { $ref: '#/components/responses/InternalServerError' }
++    delete:
++      tags: [Modpacks]
++      summary: Delete a modpack by ID
++      operationId: deleteModpackById
++      responses:
++        '204':
++          description: No Content
++        '400': { $ref: '#/components/responses/BadRequestError' }
++        '401': { $ref: '#/components/responses/UnauthorizedError' }
++        '403': { $ref: '#/components/responses/ForbiddenError' }
++        '404':
++          description: Not Found
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/ErrorResponse' }
++        '500': { $ref: '#/components/responses/InternalServerError' }
+ components:
+   securitySchemes:
+     bearerAuth:
+@@ -181,6 +300,18 @@ components:
+         application/json:
+           schema:
+             $ref: '#/components/schemas/ErrorResponse'
++    ForbiddenError:
++      description: Forbidden
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
++    BadRequestError:
++      description: Bad Request
++      content:
++        application/json:
++          schema:
++            $ref: '#/components/schemas/ErrorResponse'
+     InternalServerError:
+       description: Internal Server Error
+       content:
+@@ -333,3 +464,89 @@ components:
+           description: Path to poll for server status
+       required: [location]
+ 
++    Mod:
++      type: object
++      properties:
++        projectId: { type: string }
++        slug: { type: string }
++        title: { type: string }
++        addedAt:
++          type: integer
++          format: int64
++      required: [projectId, slug, title, addedAt]
++
++    PostModpackPayload:
++      type: object
++      properties:
++        modpackName: { type: string }
++        mods:
++          type: array
++          items: { $ref: '#/components/schemas/Mod' }
++        type: { type: string }
++        version: { type: string }
++      required: [modpackName, type, version]
++
++    PutModpackPayload:
++      type: object
++      properties:
++        modpackName: { type: string }
++        mods:
++          type: array
++          items: { $ref: '#/components/schemas/Mod' }
++        type: { type: string }
++        version: { type: string }
++      required: [modpackName, type, version]
++
++    Modpack:
++      type: object
++      properties:
++        modpackId: { type: string }
++        modpackName: { type: string }
++        createdAt:
++          type: integer
++          format: int64
++        mods:
++          type: array
++          items: { $ref: '#/components/schemas/Mod' }
++        type: { type: string }
++        updatedAt:
++          type: integer
++          format: int64
++        userId: { type: string }
++        version: { type: string }
++      required: [modpackId, modpackName, createdAt, mods, type, updatedAt, userId, version]
++
++    ModpackListResponse:
++      type: object
++      properties:
++        items:
++          type: array
++          items: { $ref: '#/components/schemas/Modpack' }
++        lastEvaluatedKey:
++          type: string
++          description: Pagination cursor for next page
++      required: [items]
++
++    CreateModpackResponse:
++      type: object
++      properties:
++        modpackId: { type: string }
++        createdAt:
++          type: integer
++          format: int64
++        location:
++          type: string
++          description: Path to the created modpack
++      required: [modpackId, createdAt, location]
++
++    UpdateModpackResponse:
++      type: object
++      properties:
++        location:
++          type: string
++          description: Path to the updated modpack
++        updatedAt:
++          type: integer
++          format: int64
++      required: [location, updatedAt]
++
+diff --git a/lambdas/deleteServerStorageHandler.ts b/lambdas/deleteServerStorageHandler.ts
+index 1c7eb68..dcceddb 100644
+--- a/lambdas/deleteServerStorageHandler.ts
++++ b/lambdas/deleteServerStorageHandler.ts
+@@ -1,24 +1,60 @@
++import { promises as fs } from "node:fs";
++import path from "node:path";
+ import { Logger } from "@aws-lambda-powertools/logger";
+-import {
+-  DeleteObjectsCommand,
+-  ListObjectsV2Command,
+-  type ListObjectsV2CommandOutput,
+-  S3Client,
+-} from "@aws-sdk/client-s3";
+ import middy from "@middy/core";
+ import httpCors from "@middy/http-cors";
+ import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+ 
+-const BUCKET_NAME = process.env.BUCKET_NAME!;
+-const MAX_DELETE = 1000;
+-
+-const s3Client = new S3Client();
++const MOUNT_PATH = process.env.MOUNT_PATH ?? "/mnt/efs";
+ const logger = new Logger({ serviceName: "DeleteServerStorageHandler" });
+ 
++async function pathExists(targetPath: string): Promise<boolean> {
++  try {
++    await fs.stat(targetPath);
++    return true;
++  } catch {
++    return false;
++  }
++}
++
++async function deleteDirContents(targetDir: string): Promise<number> {
++  const entries = await fs.readdir(targetDir, { withFileTypes: true });
++  let deletedCount = 0;
++
++  // Concurrency limiter
++  const concurrency = 16;
++  for (let i = 0; i < entries.length; i += concurrency) {
++    const batch = entries.slice(i, i + concurrency);
++    const results = await Promise.allSettled(
++      batch.map(async (entry) => {
++        const entryPath = path.join(targetDir, entry.name);
++        try {
++          if (entry.isDirectory()) {
++            // Remove directory recursively
++            await fs.rm(entryPath, { recursive: true, force: true });
++          } else {
++            await fs.rm(entryPath, { force: true });
++          }
++          return 1;
++        } catch (err) {
++          logger.warn("Failed to delete entry", { entryPath, err });
++          return 0;
++        }
++      }),
++    );
++    for (const r of results) {
++      if (r.status === "fulfilled") deletedCount += r.value;
++    }
++  }
++
++  return deletedCount;
++}
++
+ export const lambdaFunction = async (
+   event: APIGatewayProxyEvent,
+ ): Promise<APIGatewayProxyResult> => {
+   try {
++    logger.logEventIfEnabled(event);
+     const userId = event.requestContext.authorizer?.userId;
+     if (!userId) {
+       return {
+@@ -26,55 +62,23 @@ export const lambdaFunction = async (
+         body: JSON.stringify({ message: "Unauthorized" }),
+       };
+     }
+-    const prefix = `${userId}/`;
+-    let continuationToken: string | undefined;
+-    const allKeys: { Key: string }[] = [];
+-
+-    do {
+-      const list: ListObjectsV2CommandOutput = await s3Client.send(
+-        new ListObjectsV2Command({
+-          Bucket: BUCKET_NAME,
+-          Prefix: prefix,
+-          ContinuationToken: continuationToken,
+-        }),
+-      );
+-
+-      (list.Contents ?? []).forEach((obj: any) => {
+-        if (!obj.Key) return;
+-        if (obj.Key === prefix) return;
+-        allKeys.push({ Key: obj.Key });
+-      });
+-
+-      continuationToken = list.IsTruncated
+-        ? list.NextContinuationToken!
+-        : undefined;
+-    } while (continuationToken);
+-
+-    if (allKeys.length === 0) {
++    const userDir = path.join(MOUNT_PATH, userId);
++    
++    const exists = await pathExists(userDir);
++    if (!exists) {
+       return {
+-        statusCode: 200,
+-        body: JSON.stringify({ message: "Nothing to delete" }),
++        statusCode: 204,
++        body: "",
+       };
+     }
+ 
+-    for (let i = 0; i < allKeys.length; i += MAX_DELETE) {
+-      const chunk = allKeys.slice(i, i + MAX_DELETE);
+-      await s3Client.send(
+-        new DeleteObjectsCommand({
+-          Bucket: BUCKET_NAME,
+-          Delete: { Objects: chunk, Quiet: false },
+-        }),
+-      );
+-    }
+-
++    await deleteDirContents(userDir);
+     return {
+-      statusCode: 200,
+-      body: JSON.stringify({
+-        message: `Deleted ${allKeys.length} objects under prefix ${prefix}`,
+-      }),
++      statusCode: 204,
++      body: "",
+     };
+   } catch (error: unknown) {
+-    logger.error("Error deleting S3 prefix:", { error });
++    logger.error("Error deleting EFS path:", { error });
+     return {
+       statusCode: 500,
+       body: JSON.stringify({ message: "Internal server error" }),
+diff --git a/lambdas/getServerConfigurationHandler.ts b/lambdas/getServerConfigurationHandler.ts
+index 3f79331..56ec56b 100644
+--- a/lambdas/getServerConfigurationHandler.ts
++++ b/lambdas/getServerConfigurationHandler.ts
+@@ -1,6 +1,6 @@
+-import {Logger} from "@aws-lambda-powertools/logger";
++import { Logger } from "@aws-lambda-powertools/logger";
+ import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+-import {marshall, unmarshall} from "@aws-sdk/util-dynamodb";
++import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+ import middy from "@middy/core";
+ import httpCors from "@middy/http-cors";
+ import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+@@ -22,7 +22,10 @@ export const lambdaFunction = async (
+   try {
+     const userId = event.requestContext.authorizer?.userId;
+     if (!userId) {
+-      return { statusCode: 401, body: JSON.stringify({ message: "Unauthorized" }) };
++      return {
++        statusCode: 401,
++        body: JSON.stringify({ message: "Unauthorized" }),
++      };
+     }
+     logger.info("Fetching server configuration", { userId });
+ 
+@@ -34,7 +37,10 @@ export const lambdaFunction = async (
+       }),
+     );
+     if (!Item) {
+-      return { statusCode: 404, body: JSON.stringify({ message: "Not Found" }) };
++      return {
++        statusCode: 404,
++        body: JSON.stringify({ message: "Not Found" }),
++      };
+     }
+ 
+     const serverConfigurationItem = unmarshall(Item) as ServerConfigurationItem;
+@@ -47,7 +53,7 @@ export const lambdaFunction = async (
+     logger.error("Handler error", { error });
+     return {
+       statusCode: 500,
+-      body: JSON.stringify({ message: "Internal server error"}),
++      body: JSON.stringify({ message: "Internal server error" }),
+     };
+   }
+ };
+diff --git a/lambdas/getServerHistoryHandler.ts b/lambdas/getServerHistoryHandler.ts
+index d0e8e9e..03d82b1 100644
+--- a/lambdas/getServerHistoryHandler.ts
++++ b/lambdas/getServerHistoryHandler.ts
+@@ -1,10 +1,10 @@
+ import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
+ import { unmarshall } from "@aws-sdk/util-dynamodb";
+-import { base32Decode, base32Encode } from '@ctrl/ts-base32';
++import { base32Decode, base32Encode } from "@ctrl/ts-base32";
+ import middy from "@middy/core";
+ import httpCors from "@middy/http-cors";
+ import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+-import {stringToUint8Array, uint8ArrayToString} from "uint8array-extras";
++import { stringToUint8Array, uint8ArrayToString } from "uint8array-extras";
+ 
+ const TABLE_NAME = process.env.TABLE_NAME!;
+ const USER_ID_INDEX_NAME = process.env.USER_ID_INDEX_NAME!;
+@@ -29,7 +29,9 @@ export const lambdaFunction = async (
+             S: userId,
+           },
+         },
+-        ExclusiveStartKey: afterKey ? JSON.parse(uint8ArrayToString(base32Decode(afterKey))) : undefined,
++        ExclusiveStartKey: afterKey
++          ? JSON.parse(uint8ArrayToString(base32Decode(afterKey)))
++          : undefined,
+         Limit: limit ? Math.min(parseInt(limit), 100) : 10,
+         ScanIndexForward: false,
+         ConsistentRead: false,
+@@ -38,7 +40,9 @@ export const lambdaFunction = async (
+ 
+     let lastEvaluatedKey: string | undefined;
+     if (queryResponse.LastEvaluatedKey) {
+-      lastEvaluatedKey = base32Encode(stringToUint8Array(JSON.stringify(queryResponse.LastEvaluatedKey)));
++      lastEvaluatedKey = base32Encode(
++        stringToUint8Array(JSON.stringify(queryResponse.LastEvaluatedKey)),
++      );
+     }
+ 
+     const serverHistoryItems = (queryResponse.Items ?? []).map((item) =>
+@@ -46,27 +50,28 @@ export const lambdaFunction = async (
+     );
+ 
+     const items = serverHistoryItems.map(
+-          ({
+-            serverId,
+-            startedAt,
+-            endedAt,
+-            serverStatus,
+-            serverConfig,
+-            publicIp,
+-          }) => ({
+-            serverId,
+-            startedAt,
+-            endedAt,
+-            serverStatus,
+-            serverConfig,
+-            publicIp,
+-          }),
+-        );
++      ({
++        serverId,
++        startedAt,
++        endedAt,
++        serverStatus,
++        serverConfig,
++        publicIp,
++      }) => ({
++        serverId,
++        startedAt,
++        endedAt,
++        serverStatus,
++        serverConfig,
++        publicIp,
++      }),
++    );
+ 
+     return {
+       statusCode: 200,
+       body: JSON.stringify({
+-        items, lastEvaluatedKey
++        items,
++        lastEvaluatedKey,
+       }),
+     };
+   } catch (error: unknown) {
+diff --git a/lambdas/instanceReadinessValidatorHandler.ts b/lambdas/instanceReadinessValidatorHandler.ts
+index b783652..18e4743 100644
+--- a/lambdas/instanceReadinessValidatorHandler.ts
++++ b/lambdas/instanceReadinessValidatorHandler.ts
+@@ -1,69 +1,70 @@
+-import { DescribeInstancesCommand, EC2Client } from "@aws-sdk/client-ec2";
+ import {
+-  DescribeContainerInstancesCommand,
++  DescribeNetworkInterfacesCommand,
++  EC2Client,
++} from "@aws-sdk/client-ec2";
++import {
++  DescribeTasksCommand,
+   ECSClient,
+-  ListContainerInstancesCommand,
++  type Task,
+ } from "@aws-sdk/client-ecs";
+ import {
+-  type InstanceCheckerEvent,
+-  InstanceCheckerEventSchema,
+-  type InstanceCheckerResponse,
+-  InstanceCheckerResponseSchema,
++  type ServerCheckerEvent,
++  ServerCheckerEventSchema,
++  type ServerCheckerResponse,
++  ServerCheckerResponseSchema,
+ } from "../lib/schemas/instanceCheckerPayload.js";
+ 
+ const ecsClient = new ECSClient();
+ const ec2Client = new EC2Client();
+ 
+-const getPublicIp = async (ec2InstanceId: string): Promise<string | null> => {
+-  const { Reservations } = await ec2Client.send(
+-    new DescribeInstancesCommand({ InstanceIds: [ec2InstanceId] }),
++function getNetworkInterfaceId(task: Task | null): string | null {
++  if (!task) return null;
++
++  const eniAtt = task.attachments?.find(
++    (a) => a.type === "ElasticNetworkInterface",
+   );
+-  const instance = Reservations?.[0]?.Instances?.[0];
+   return (
+-    instance?.PublicIpAddress ??
+-    instance?.NetworkInterfaces?.[0]?.Association?.PublicIp ??
+-    null
++    eniAtt?.details?.find((d) => d.name === "networkInterfaceId")?.value ?? null
+   );
+-};
++}
+ 
+-export const handler = async (
+-  event: InstanceCheckerEvent,
+-): Promise<InstanceCheckerResponse> => {
+-  const { clusterName, ec2InstanceId } =
+-    InstanceCheckerEventSchema.parse(event);
++async function getPublicIp(
++  networkInterfaceId: string | null,
++): Promise<string | null> {
++  if (!networkInterfaceId) return null;
+ 
+-  const listResponse = await ecsClient.send(
+-    new ListContainerInstancesCommand({
+-      cluster: clusterName,
+-      status: "ACTIVE",
++  const { NetworkInterfaces } = await ec2Client.send(
++    new DescribeNetworkInterfacesCommand({
++      NetworkInterfaceIds: [networkInterfaceId],
+     }),
+   );
+ 
+-  const containerInstanceArns = listResponse.containerInstanceArns!;
++  return NetworkInterfaces?.[0]?.Association?.PublicIp ?? null;
++}
+ 
+-  if (containerInstanceArns.length === 0) {
+-    return InstanceCheckerResponseSchema.parse({
+-      instanceIsReady: false,
+-      containerInstanceArn: null,
+-      publicIp: null,
+-    });
+-  }
++export const handler = async (
++  event: ServerCheckerEvent,
++): Promise<ServerCheckerResponse> => {
++  const { clusterName, taskArn } = ServerCheckerEventSchema.parse(event);
+ 
+-  const describeResponse = await ecsClient.send(
+-    new DescribeContainerInstancesCommand({
++  const { tasks } = await ecsClient.send(
++    new DescribeTasksCommand({
+       cluster: clusterName,
+-      containerInstances: containerInstanceArns,
++      tasks: [taskArn],
+     }),
+   );
+ 
+-  const containerInstances = describeResponse.containerInstances!;
+-  const match = containerInstances.find(
+-    (instance) => instance.ec2InstanceId === ec2InstanceId,
+-  );
++  if (!tasks || tasks.length === 0) {
++    return ServerCheckerResponseSchema.parse({
++      isServerReady: false,
++      publicIp: null,
++    });
++  }
+ 
+-  return InstanceCheckerResponseSchema.parse({
+-    instanceIsReady: Boolean(match),
+-    containerInstanceArn: match?.containerInstanceArn ?? null,
+-    publicIp: match ? await getPublicIp(ec2InstanceId) : null,
++  return ServerCheckerResponseSchema.parse({
++    isServerReady: tasks?.[0]?.lastStatus === "RUNNING",
++    publicIp: await getPublicIp(
++      getNetworkInterfaceId(tasks?.[0] ?? null) ?? null,
++    ),
+   });
+ };
+diff --git a/lambdas/putServerConfigurationHandler.ts b/lambdas/putServerConfigurationHandler.ts
+index cde6f45..2982206 100644
+--- a/lambdas/putServerConfigurationHandler.ts
++++ b/lambdas/putServerConfigurationHandler.ts
+@@ -1,12 +1,10 @@
+-import {Logger} from "@aws-lambda-powertools/logger";
+-import {DynamoDBClient, PutItemCommand} from "@aws-sdk/client-dynamodb";
+-import {marshall} from "@aws-sdk/util-dynamodb";
++import { Logger } from "@aws-lambda-powertools/logger";
++import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
++import { marshall } from "@aws-sdk/util-dynamodb";
+ import middy from "@middy/core";
+ import httpCors from "@middy/http-cors";
+ import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+-import {
+-  ServerConfigurationPayloadSchema
+-} from "../lib/schemas/serverConfigurationPayload.js";
++import { ServerConfigurationPayloadSchema } from "../lib/schemas/serverConfigurationPayload.js";
+ 
+ const TABLE_NAME = process.env.TABLE_NAME!;
+ 
+@@ -19,18 +17,26 @@ export const lambdaFunction = async (
+   try {
+     const userId = event.requestContext.authorizer?.userId;
+     if (!userId) {
+-      return { statusCode: 401, body: JSON.stringify({ message: "Unauthorized" }) };
++      return {
++        statusCode: 401,
++        body: JSON.stringify({ message: "Unauthorized" }),
++      };
+     }
+ 
+-    const serverConfiguration =
+-      ServerConfigurationPayloadSchema.parse(JSON.parse(event.body!));
++    const serverConfiguration = ServerConfigurationPayloadSchema.parse(
++      JSON.parse(event.body!),
++    );
+ 
+     const response = await ddbClient.send(
+       new PutItemCommand({
+         TableName: TABLE_NAME,
+-        Item: marshall({ userId, configuration: serverConfiguration, updatedAt: Date.now() })
+-      })
+-    )
++        Item: marshall({
++          userId,
++          configuration: serverConfiguration,
++          updatedAt: Date.now(),
++        }),
++      }),
++    );
+ 
+     return {
+       statusCode: 200,
+@@ -40,7 +46,7 @@ export const lambdaFunction = async (
+     logger.error("Handler error", { error });
+     return {
+       statusCode: 500,
+-      body: JSON.stringify({ message: "Internal server error"}),
++      body: JSON.stringify({ message: "Internal server error" }),
+     };
+   }
+ };
+diff --git a/lambdas/serverRequestValidatorHandler.ts b/lambdas/serverRequestValidatorHandler.ts
+index 12a5f1d..171c0e9 100644
+--- a/lambdas/serverRequestValidatorHandler.ts
++++ b/lambdas/serverRequestValidatorHandler.ts
+@@ -12,7 +12,8 @@ import { customAlphabet } from "nanoid";
+ import { ZodError } from "zod";
+ 
+ const SERVER_HISTORY_TABLE_NAME = process.env.SERVER_HISTORY_TABLE_NAME!;
+-const SERVER_CONFIGURATIONS_TABLE_NAME = process.env.SERVER_CONFIGURATIONS_TABLE_NAME!;
++const SERVER_CONFIGURATIONS_TABLE_NAME =
++  process.env.SERVER_CONFIGURATIONS_TABLE_NAME!;
+ 
+ const ddbClient = new DynamoDBClient();
+ const logger = new Logger({ serviceName: "ServerRequestValidator" });
+@@ -75,8 +76,6 @@ export const lambdaHandler = async (
+           serverStatus: "PENDING",
+           userId: userId,
+           taskArn: null,
+-          instanceId: null,
+-          containerInstanceArn: null,
+         }),
+         ConditionExpression: "attribute_not_exists(serverId)",
+       }),
+diff --git a/lambdas/supabaseAuthorizerHandler.ts b/lambdas/supabaseAuthorizerHandler.ts
+index e1c4525..996203a 100644
+--- a/lambdas/supabaseAuthorizerHandler.ts
++++ b/lambdas/supabaseAuthorizerHandler.ts
+@@ -30,7 +30,7 @@ function generateIamPolicy(
+     },
+     context: {
+       source: "supabase-jwt-authorizer",
+-      userId: principalId
++      userId: principalId,
+     },
+   };
+ }
+@@ -43,8 +43,8 @@ export const handler = async (
+     const jwt = event.authorizationToken?.split(" ")[1];
+     const { payload } = await jwtVerify(jwt, SUPABASE_LEGACY_JWT_SECRET);
+     const principalId = payload.sub!;
+-
+-    return generateIamPolicy(principalId, "Allow", event.methodArn);
++    const apiWildcardArn = `${event.methodArn.split("/")[0]}/*/*/*`;
++    return generateIamPolicy(principalId, "Allow", apiWildcardArn);
+   } catch (error: unknown) {
+     logger.error("JWT verification failed", {
+       error: error instanceof Error ? error.message : String(error),
+diff --git a/lib/app.ts b/lib/app.ts
+index 02e1e79..64ec1aa 100644
+--- a/lib/app.ts
++++ b/lib/app.ts
+@@ -25,7 +25,9 @@ const networkStack = new NetworkStack(app, "NetworkStack", {
+ 
+ const storageStack = new StorageStack(app, "StorageStack", {
+   ...commonDeploymentProps,
++  vpc: networkStack.vpc,
+ });
++storageStack.node.addDependency(networkStack);
+ 
+ const serverOrchestrationStack = new ServerOrchestrationStack(
+   app,
+@@ -35,7 +37,7 @@ const serverOrchestrationStack = new ServerOrchestrationStack(
+     vpc: networkStack.vpc,
+     securityGroup: networkStack.securityGroup,
+     serverHistoryTable: storageStack.serverHistoryTable,
+-    minecraftWorldsBucket: storageStack.minecraftWorldsBucket,
++    efsConstruct: storageStack.efsConstruct,
+   },
+ );
+ serverOrchestrationStack.node.addDependency(networkStack);
+@@ -48,9 +50,10 @@ const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(
+     ...commonDeploymentProps,
+     serverHistoryTable: storageStack.serverHistoryTable,
+     serverConfigurationTable: storageStack.serverConfigurationTable,
+-    minecraftWorldsBucket: storageStack.minecraftWorldsBucket,
+-    clusterArn: serverOrchestrationStack.computeConstruct.cluster.clusterArn,
++    modpackTable: storageStack.modpackTable,
++    vpc: networkStack.vpc,
++    efsAccessPoint: storageStack.efsConstruct.defaultAccessPoint,
+   },
+ );
++minecraftOnDemandServiceStack.node.addDependency(networkStack);
+ minecraftOnDemandServiceStack.node.addDependency(storageStack);
+-minecraftOnDemandServiceStack.node.addDependency(serverOrchestrationStack);
+diff --git a/lib/constants.ts b/lib/constants.ts
+index c2a46ed..c388c95 100644
+--- a/lib/constants.ts
++++ b/lib/constants.ts
+@@ -1 +1,2 @@
+ export const USER_ID_INDEX_NAME = "UserIdIndex";
++export const FARGATE_CLUSTER_NAME = "FargateCluster";
+diff --git a/lib/constructs/ComputeConstruct.ts b/lib/constructs/ComputeConstruct.ts
+deleted file mode 100644
+index 5ada57b..0000000
+--- a/lib/constructs/ComputeConstruct.ts
++++ /dev/null
+@@ -1,142 +0,0 @@
+-import { aws_logs, type StackProps } from "aws-cdk-lib";
+-import {
+-  type ISecurityGroup,
+-  type IVpc,
+-  Peer,
+-  Port,
+-  SecurityGroup,
+-  UserData,
+-} from "aws-cdk-lib/aws-ec2";
+-import {
+-  AwsLogDriver,
+-  Cluster,
+-  type ContainerDefinition,
+-  ContainerImage,
+-  Ec2TaskDefinition,
+-  NetworkMode,
+-  Protocol,
+-} from "aws-cdk-lib/aws-ecs";
+-import {
+-  InstanceProfile,
+-  ManagedPolicy,
+-  Role,
+-  ServicePrincipal,
+-} from "aws-cdk-lib/aws-iam";
+-import type { IBucket } from "aws-cdk-lib/aws-s3";
+-import { StringParameter } from "aws-cdk-lib/aws-ssm";
+-import { Construct } from "constructs";
+-
+-export interface ComputeConstructProps extends StackProps {
+-  vpc: IVpc;
+-  minecraftWorldsBucket: IBucket;
+-}
+-
+-export class ComputeConstruct extends Construct {
+-  readonly cluster: Cluster;
+-  readonly taskDefinition: Ec2TaskDefinition;
+-  readonly containerDefinition: ContainerDefinition;
+-  readonly ecsOptimizedAmiArm64: string;
+-  readonly userData: UserData;
+-  readonly instanceRole: Role;
+-  readonly instanceProfile: InstanceProfile;
+-
+-  private readonly securityGroup: ISecurityGroup;
+-
+-  constructor(scope: Construct, id: string, props: ComputeConstructProps) {
+-    super(scope, id);
+-
+-    this.securityGroup = new SecurityGroup(this, "SecurityGroup", {
+-      vpc: props.vpc,
+-      allowAllOutbound: true,
+-      description: "Default SG for Minecraft servers",
+-    });
+-    this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.allTraffic());
+-
+-    this.cluster = new Cluster(this, "Cluster", { vpc: props.vpc });
+-
+-    this.taskDefinition = new Ec2TaskDefinition(this, "Ec2TaskDefinition", {
+-      networkMode: NetworkMode.BRIDGE,
+-    });
+-    this.taskDefinition.addVolume({
+-      name: "MinecraftData",
+-      host: {
+-        sourcePath: "/minecraft_data",
+-      },
+-    });
+-
+-    this.containerDefinition = this.taskDefinition.addContainer(
+-      "MinecraftJavaServer",
+-      {
+-        image: ContainerImage.fromRegistry("itzg/minecraft-server"),
+-        cpu: 2048,
+-        memoryReservationMiB: 1024,
+-        environment: {
+-          EULA: "TRUE",
+-          ENABLE_QUERY: "true",
+-          MOTD: "A §nPZ§r server. Powered by §6AWS§r",
+-          OPS: "Viktor1778",
+-          ENABLE_AUTOSTOP: "TRUE",
+-          AUTOSTOP_TIMEOUT_INIT: "300",
+-          AUTOSTOP_TIMEOUT_EST: "300",
+-          NETWORK_COMPRESSION_THRESHOLD: "256",
+-          VIEW_DISTANCE: "8",
+-          SIMULATION_DISTANCE: "4",
+-          USE_AIKAR_FLAGS: "true",
+-          SYNC_CHUNK_WRITES: "FALSE",
+-        },
+-        logging: new AwsLogDriver({
+-          logRetention: aws_logs.RetentionDays.ONE_DAY,
+-          streamPrefix: "MinecraftJavaServer",
+-        }),
+-      },
+-    );
+-    this.containerDefinition.addPortMappings(
+-      { containerPort: 25565, hostPort: 25565, protocol: Protocol.TCP },
+-      { containerPort: 25565, hostPort: 25565, protocol: Protocol.UDP },
+-    );
+-    this.containerDefinition.addMountPoints({
+-      containerPath: "/data",
+-      sourceVolume: "MinecraftData",
+-      readOnly: false,
+-    });
+-
+-    this.ecsOptimizedAmiArm64 = StringParameter.valueForStringParameter(
+-      this,
+-      "/aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id",
+-    );
+-
+-    this.userData = UserData.forLinux();
+-    this.userData.addCommands(`
+-      set -e
+-      sudo systemctl mask ecs
+-      mkdir -p /var/log/ecs /var/log/minecraft /minecraft_data
+-      export LOG_FILE=/var/log/minecraft/server.log
+-      touch $LOG_FILE
+-      exec > >(tee -a $LOG_FILE) 2>&1
+-      export TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+-      export USER_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/tags/instance/userId)
+-      aws s3 sync s3://${props.minecraftWorldsBucket.bucketName}/$USER_ID /minecraft_data --only-show-errors --no-progress
+-      echo ECS_CLUSTER=${this.cluster.clusterName} >> /etc/ecs/ecs.config
+-      sudo systemctl unmask ecs
+-      sudo systemctl enable --now --no-block ecs
+-    `);
+-
+-    this.instanceRole = new Role(this, "EC2InstanceRole", {
+-      assumedBy: new ServicePrincipal("ec2.amazonaws.com"),
+-      managedPolicies: [
+-        ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2FullAccess"),
+-        ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMManagedInstanceCore"),
+-        ManagedPolicy.fromAwsManagedPolicyName(
+-          "service-role/AmazonEC2ContainerServiceforEC2Role",
+-        ),
+-      ],
+-    });
+-
+-    this.instanceProfile = new InstanceProfile(this, "EC2InstanceProfile", {
+-      role: this.instanceRole,
+-    });
+-
+-    props.minecraftWorldsBucket.grantReadWrite(this.instanceRole);
+-    props.minecraftWorldsBucket.grantReadWrite(this.instanceRole);
+-  }
+-}
+diff --git a/lib/constructs/ServerProvisioningOrchestratorConstruct.ts b/lib/constructs/ServerProvisioningOrchestratorConstruct.ts
+index b29f88f..5fedac5 100644
+--- a/lib/constructs/ServerProvisioningOrchestratorConstruct.ts
++++ b/lib/constructs/ServerProvisioningOrchestratorConstruct.ts
+@@ -5,11 +5,11 @@ import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+ import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
+ import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+ import { LogGroup } from "aws-cdk-lib/aws-logs";
+-import type { IBucket } from "aws-cdk-lib/aws-s3";
+ import {
+   Choice,
+   Condition,
+-  DefinitionBody, Fail,
++  DefinitionBody,
++  Fail,
+   type IChainable,
+   IntegrationPattern,
+   JsonPath,
+@@ -17,7 +17,9 @@ import {
+   Pass,
+   StateMachine,
+   StateMachineType,
+-  TaskInput, Wait, WaitTime,
++  TaskInput,
++  Wait,
++  WaitTime,
+ } from "aws-cdk-lib/aws-stepfunctions";
+ import {
+   CallAwsService,
+@@ -26,14 +28,15 @@ import {
+   LambdaInvoke,
+ } from "aws-cdk-lib/aws-stepfunctions-tasks";
+ import { Construct } from "constructs";
+-import type { ComputeConstruct } from "./ComputeConstruct.js";
++import type { EfsConstruct } from "./efsConstruct.js";
++import type { FargateConstruct } from "./fargateConstruct.js";
+ 
+ export interface ServerProvisioningOrchestratorProps extends StackProps {
+   vpc: IVpc;
+   securityGroup: ISecurityGroup;
+   serverHistoryTable: ITableV2;
+-  minecraftWorldsBucket: IBucket;
+-  computeConstruct: ComputeConstruct;
++  efsConstruct: EfsConstruct;
++  fargateConstruct: FargateConstruct;
+ }
+ 
+ export class ServerProvisioningOrchestratorConstruct extends Construct {
+@@ -52,40 +55,245 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
+       resultPath: "$",
+     });
+ 
+-    const runInstance = new CallAwsService(this, "Run EC2 instance", {
+-      service: "ec2",
+-      action: "runInstances",
++    const createAccessPoint = new CallAwsService(
++      this,
++      "Create EFS access point",
++      {
++        service: "efs",
++        action: "createAccessPoint",
++        iamResources: [props.efsConstruct.filesystem.fileSystemArn],
++        parameters: {
++          FileSystemId: props.efsConstruct.filesystem.fileSystemId,
++          ClientToken: JsonPath.uuid(),
++          PosixUser: {
++            Uid: 1000,
++            Gid: 1000,
++          },
++          RootDirectory: {
++            Path: JsonPath.format("/{}", JsonPath.stringAt("$.userId")),
++            CreationInfo: {
++              OwnerUid: 1000,
++              OwnerGid: 1000,
++              Permissions: "0755",
++            },
++          },
++        },
++        integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
++        resultSelector: {
++          "ClientToken.$": "$.ClientToken",
++          "AccessPointArn.$": "$.AccessPointArn",
++          "AccessPointId.$": "$.AccessPointId",
++        },
++        resultPath: "$.efsAccessPoint",
++      },
++    );
++
++    const registerTaskDefinition = new CallAwsService(
++      this,
++      "Register task definition",
++      {
++        service: "ecs",
++        action: "registerTaskDefinition",
++        iamResources: ["*"],
++        parameters: {
++          Family: JsonPath.format("user_{}", JsonPath.stringAt("$.userId")),
++          RequiresCompatibilities: ["FARGATE"],
++          NetworkMode: "awsvpc",
++          Cpu: "1024",
++          Memory: "2048",
++          RuntimePlatform: {
++            CpuArchitecture: "ARM64",
++            OperatingSystemFamily: "LINUX",
++          },
++          TaskRoleArn: props.fargateConstruct.taskRole.roleArn,
++          ExecutionRoleArn: props.fargateConstruct.taskExecutionRole.roleArn,
++          Volumes: [
++            {
++              Name: "data",
++              EfsVolumeConfiguration: {
++                FileSystemId: props.efsConstruct.filesystem.fileSystemId,
++                TransitEncryption: "ENABLED",
++                AuthorizationConfig: {
++                  AccessPointId: JsonPath.stringAt(
++                    "$.efsAccessPoint.AccessPointId",
++                  ),
++                  Iam: "ENABLED",
++                },
++              },
++            },
++          ],
++          ContainerDefinitions: [
++            {
++              Name: "java-minecraft-server",
++              Image: "itzg/minecraft-server",
++              Essential: true,
++              LogConfiguration: {
++                LogDriver: "awslogs",
++                Options: {
++                  "awslogs-create-group": "true",
++                  "awslogs-group": JsonPath.format(
++                    "/aws/ecs/user_{}",
++                    JsonPath.stringAt("$.userId"),
++                  ),
++                  "awslogs-region": "us-east-1", //TODO: Make this dynamic
++                  "awslogs-stream-prefix": JsonPath.stringAt("$.serverId"),
++                },
++              },
++              Environment: [
++                { Name: "EULA", Value: "TRUE" },
++                { Name: "ENABLE_QUERY", Value: "true" },
++                { Name: "MEMORY", Value: "1G" },
++                { Name: "MOTD", Value: "A §nPZ§r server. Powered by §6AWS§r" },
++                { Name: "OPS", Value: "Viktor1778" },
++                { Name: "ENABLE_AUTOSTOP", Value: "TRUE" },
++                { Name: "AUTOSTOP_TIMEOUT_INIT", Value: "300" },
++                { Name: "AUTOSTOP_TIMEOUT_EST", Value: "300" },
++                { Name: "USE_AIKAR_FLAGS", Value: "false" },
++                { Name: "USE_MEOWICE_FLAGS", Value: "true" },
++                {
++                  Name: "TYPE",
++                  Value: JsonPath.stringAt("$.serverConfig.type"),
++                },
++                {
++                  Name: "VERSION",
++                  Value: JsonPath.stringAt("$.serverConfig.version"),
++                },
++                {
++                  Name: "ALLOW_FLIGHT",
++                  Value: JsonPath.stringAt("$.serverConfig.allow_flight"),
++                },
++                {
++                  Name: "ALLOW_NETHER",
++                  Value: JsonPath.stringAt("$.serverConfig.allow_nether"),
++                },
++                {
++                  Name: "DIFFICULTY",
++                  Value: JsonPath.stringAt("$.serverConfig.difficulty"),
++                },
++                {
++                  Name: "GENERATE_STRUCTURES",
++                  Value: JsonPath.stringAt(
++                    "$.serverConfig.generate_structures",
++                  ),
++                },
++                {
++                  Name: "HARDCORE",
++                  Value: JsonPath.stringAt("$.serverConfig.hardcore"),
++                },
++                {
++                  Name: "LEVEL_TYPE",
++                  Value: JsonPath.stringAt("$.serverConfig.level_type"),
++                },
++                {
++                  Name: "MAX_PLAYERS",
++                  Value: JsonPath.stringAt("$.serverConfig.max_players"),
++                },
++                {
++                  Name: "MODE",
++                  Value: JsonPath.stringAt("$.serverConfig.mode"),
++                },
++                {
++                  Name: "NETWORK_COMPRESSION_THRESHOLD",
++                  Value: JsonPath.stringAt(
++                    "$.serverConfig.network_compression_threshold",
++                  ),
++                },
++                {
++                  Name: "ONLINE_MODE",
++                  Value: JsonPath.stringAt("$.serverConfig.online_mode"),
++                },
++                {
++                  Name: "SEED",
++                  Value: JsonPath.stringAt("$.serverConfig.seed"),
++                },
++                {
++                  Name: "SIMULATION_DISTANCE",
++                  Value: JsonPath.stringAt(
++                    "$.serverConfig.simulation_distance",
++                  ),
++                },
++                {
++                  Name: "SPAWN_ANIMALS",
++                  Value: JsonPath.stringAt("$.serverConfig.spawn_animals"),
++                },
++                {
++                  Name: "SPAWN_MONSTERS",
++                  Value: JsonPath.stringAt("$.serverConfig.spawn_monsters"),
++                },
++                {
++                  Name: "SPAWN_NPCS",
++                  Value: JsonPath.stringAt("$.serverConfig.spawn_npcs"),
++                },
++                {
++                  Name: "SPAWN_PROTECTION",
++                  Value: JsonPath.stringAt("$.serverConfig.spawn_protection"),
++                },
++                {
++                  Name: "SYNC_CHUNK_WRITES",
++                  Value: JsonPath.stringAt("$.serverConfig.sync_chunk_writes"),
++                },
++                {
++                  Name: "VIEW_DISTANCE",
++                  Value: JsonPath.stringAt("$.serverConfig.view_distance"),
++                },
++              ],
++              MountPoints: [
++                {
++                  SourceVolume: "data",
++                  ContainerPath: "/data",
++                  ReadOnly: false,
++                },
++              ],
++              PortMappings: [
++                { ContainerPort: 25565, Protocol: "tcp" },
++                { ContainerPort: 25565, Protocol: "udp" },
++              ],
++            },
++          ],
++        },
++        integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
++        resultSelector: {
++          "TaskDefinitionArn.$": "$.TaskDefinition.TaskDefinitionArn",
++        },
++        resultPath: "$.registeredTaskDefinition",
++      },
++    );
++
++    const runServerTask = new CallAwsService(this, "Run server task", {
++      service: "ecs",
++      action: "runTask",
+       iamResources: ["*"],
+       parameters: {
+-        ImageId: props.computeConstruct.ecsOptimizedAmiArm64,
+-        InstanceType: "t4g.small",
+-        MinCount: 1,
+-        MaxCount: 1,
+-        SubnetId: props.vpc.publicSubnets.at(0)!.subnetId,
+-        SecurityGroupIds: [props.securityGroup.securityGroupId],
+-        IamInstanceProfile: {
+-          Name: props.computeConstruct.instanceProfile.instanceProfileName,
+-        },
+-        UserData: JsonPath.base64Encode(
+-          props.computeConstruct.userData.render(),
++        Cluster: props.fargateConstruct.cluster.clusterName,
++        TaskDefinition: JsonPath.stringAt(
++          "$.registeredTaskDefinition.TaskDefinitionArn",
+         ),
+-        TagSpecifications: [
++        LaunchType: "FARGATE",
++        Group: "minecraft-on-demand",
++        NetworkConfiguration: {
++          AwsvpcConfiguration: {
++            AssignPublicIp: "ENABLED",
++            SecurityGroups: [props.securityGroup.securityGroupId],
++            Subnets: [props.vpc.publicSubnets.at(0)!.subnetId],
++          },
++        },
++        Tags: [
++          { Key: "serverId", Value: JsonPath.stringAt("$.serverId") },
++          { Key: "startedAt", Value: JsonPath.numberAt("$.startedAt") },
++          {
++            Key: "taskDefinitionArn",
++            Value: JsonPath.stringAt(
++              "$.registeredTaskDefinition.TaskDefinitionArn",
++            ),
++          },
+           {
+-            ResourceType: "instance",
+-            Tags: [{ Key: "userId", Value: JsonPath.stringAt("$.userId") }],
++            Key: "accessPointId",
++            Value: JsonPath.stringAt("$.efsAccessPoint.AccessPointId"),
+           },
+         ],
+-        MetadataOptions: {
+-          HttpTokens: "required",
+-          HttpEndpoint: "enabled",
+-          InstanceMetadataTags: "enabled",
+-        },
+       },
+       integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+-      resultSelector: {
+-        "InstanceId.$": "$.Instances[0].InstanceId",
+-      },
+-      resultPath: "$.runInstanceResult",
++      resultPath: "$.runServerTaskResult",
+     });
+ 
+     const instanceReadinessValidator = new NodejsFunction(
+@@ -109,94 +317,33 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
+     );
+     instanceReadinessValidator.addToRolePolicy(
+       new PolicyStatement({
+-        actions: [
+-          "ecs:ListContainerInstances",
+-          "ecs:DescribeContainerInstances",
+-          "ec2:DescribeInstances",
+-        ],
++        actions: ["ecs:DescribeTasks", "ec2:DescribeNetworkInterfaces"],
+         resources: ["*"],
+       }),
+     );
+-
+-    const waitForInstance = new Wait(this, "Wait for instance", {
+-      time: WaitTime.duration(Duration.seconds(5)),
+-    });
+-
+-    const getInstanceStatus = new LambdaInvoke(this, "Get instance status", {
++    const getServerStatus = new LambdaInvoke(this, "Get server status", {
+       lambdaFunction: instanceReadinessValidator,
+       payloadResponseOnly: true,
+       payload: TaskInput.fromObject({
+-        clusterName: props.computeConstruct.cluster.clusterName,
+-        ec2InstanceId: JsonPath.stringAt("$.runInstanceResult.InstanceId"),
++        clusterName: props.fargateConstruct.cluster.clusterName,
++        taskArn: JsonPath.stringAt("$.runServerTaskResult.Tasks[0].TaskArn"),
+       }),
+       resultPath: "$.checkerResult",
+     });
+ 
++    const waitForServer = new Wait(this, "Wait for server", {
++      time: WaitTime.duration(Duration.seconds(10)),
++    });
++
+     const serverProvisioningFailed = new Fail(
+       this,
+       "Server provisioning failed",
+       {
+         cause: "Server provisioning failed",
+-        error: "Instance did not become ready in the alloted time.",
++        error: "Server did not become ready in the alloted time.",
+       },
+     );
+ 
+-    const runServerTask = new CallAwsService(this, "Run server task", {
+-      service: "ecs",
+-      action: "runTask",
+-      iamResources: ["*"],
+-      parameters: {
+-        Cluster: props.computeConstruct.cluster.clusterName,
+-        TaskDefinition: props.computeConstruct.taskDefinition.taskDefinitionArn,
+-        LaunchType: "EC2",
+-        Group: "minecraft-on-demand",
+-        PlacementConstraints: [
+-          {
+-            Type: "memberOf",
+-            Expression: JsonPath.format(
+-              "ec2InstanceId == {}",
+-              JsonPath.stringAt("$.runInstanceResult.InstanceId"),
+-            ),
+-          },
+-        ],
+-        Overrides: {
+-          ContainerOverrides: [
+-            {
+-              Name: props.computeConstruct.containerDefinition.containerName,
+-              Environment: [
+-                { Name: "TYPE", Value: JsonPath.stringAt("$.serverConfig.type") },
+-                { Name: "VERSION", Value: JsonPath.stringAt("$.serverConfig.version") },
+-                { Name: "ALLOW_FLIGHT", Value: JsonPath.stringAt("$.serverConfig.allow_flight") },
+-                { Name: "ALLOW_NETHER", Value: JsonPath.stringAt("$.serverConfig.allow_nether") },
+-                { Name: "DIFFICULTY", Value: JsonPath.stringAt("$.serverConfig.difficulty") },
+-                { Name: "GENERATE_STRUCTURES", Value: JsonPath.stringAt("$.serverConfig.generate_structures") },
+-                { Name: "HARDCORE", Value: JsonPath.stringAt("$.serverConfig.hardcore") },
+-                { Name: "LEVEL_TYPE", Value: JsonPath.stringAt("$.serverConfig.level_type") },
+-                { Name: "MAX_PLAYERS", Value: JsonPath.stringAt("$.serverConfig.max_players") },
+-                { Name: "MODE", Value: JsonPath.stringAt("$.serverConfig.mode") },
+-                { Name: "NETWORK_COMPRESSION_THRESHOLD", Value: JsonPath.stringAt("$.serverConfig.network_compression_threshold") },
+-                { Name: "ONLINE_MODE", Value: JsonPath.stringAt("$.serverConfig.online_mode") },
+-                { Name: "SEED", Value: JsonPath.stringAt("$.serverConfig.seed") },
+-                { Name: "SIMULATION_DISTANCE", Value: JsonPath.stringAt("$.serverConfig.simulation_distance") },
+-                { Name: "SPAWN_ANIMALS", Value: JsonPath.stringAt("$.serverConfig.spawn_animals") },
+-                { Name: "SPAWN_MONSTERS", Value: JsonPath.stringAt("$.serverConfig.spawn_monsters") },
+-                { Name: "SPAWN_NPCS", Value: JsonPath.stringAt("$.serverConfig.spawn_npcs") },
+-                { Name: "SPAWN_PROTECTION", Value: JsonPath.stringAt("$.serverConfig.spawn_protection") },
+-                { Name: "SYNC_CHUNK_WRITES", Value: JsonPath.stringAt("$.serverConfig.sync_chunk_writes") },
+-                { Name: "VIEW_DISTANCE", Value: JsonPath.stringAt("$.serverConfig.view_distance") },
+-              ],
+-            },
+-          ],
+-        },
+-        Tags: [
+-          { Key: "serverId", Value: JsonPath.stringAt("$.serverId") },
+-          { Key: "startedAt", Value: JsonPath.numberAt("$.startedAt") },
+-        ],
+-      },
+-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+-      resultPath: "$.runServerTaskResult",
+-    });
+-
+     const updateDdbItem = new DynamoUpdateItem(this, "Update DDB item", {
+       table: props.serverHistoryTable,
+       key: {
+@@ -207,8 +354,7 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
+           JsonPath.numberAt("$.startedAt"),
+         ),
+       },
+-      updateExpression:
+-        "SET serverStatus = :ss, publicIp = :ip, containerInstanceArn = :cia, taskArn = :ta, instanceId = :ii",
++      updateExpression: "SET serverStatus = :ss, publicIp = :ip, taskArn = :ta",
+       expressionAttributeValues: {
+         ":ss": DynamoAttributeValue.fromString(
+           JsonPath.stringAt("$.runServerTaskResult.Tasks[0].DesiredStatus"),
+@@ -216,43 +362,36 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
+         ":ip": DynamoAttributeValue.fromString(
+           JsonPath.stringAt("$.checkerResult.publicIp"),
+         ),
+-        ":cia": DynamoAttributeValue.fromString(
+-          JsonPath.stringAt("$.checkerResult.containerInstanceArn"),
+-        ),
+         ":ta": DynamoAttributeValue.fromString(
+           JsonPath.stringAt("$.runServerTaskResult.Tasks[0].TaskArn"),
+         ),
+-        ":ii": DynamoAttributeValue.fromString(
+-          JsonPath.stringAt("$.runInstanceResult.InstanceId"),
+-        ),
+       },
+       resultPath: JsonPath.DISCARD,
+     });
+ 
+-    const successChain = runServerTask.next(updateDdbItem);
+-
+-    const isInstanceReady = new Choice(this, "Is instance ready?")
++    const isServerReady = new Choice(this, "Is server ready?")
+       .when(
+-        Condition.booleanEquals("$.checkerResult.instanceIsReady", true),
+-        successChain,
++        Condition.booleanEquals("$.checkerResult.isServerReady", true),
++        updateDdbItem,
+       )
+       .when(
+-        Condition.booleanEquals("$.checkerResult.instanceIsReady", false),
+-        waitForInstance,
++        Condition.booleanEquals("$.checkerResult.isServerReady", false),
++        waitForServer,
+       )
+       .otherwise(serverProvisioningFailed);
+ 
+     this.definition = unwrapInput
+-      .next(runInstance)
+-      .next(waitForInstance)
+-      .next(getInstanceStatus)
+-      .next(isInstanceReady);
++      .next(createAccessPoint)
++      .next(registerTaskDefinition)
++      .next(runServerTask)
++      .next(waitForServer)
++      .next(getServerStatus)
++      .next(isServerReady);
+ 
+     this.stateMachine = new StateMachine(this, `${id}-StateMachine`, {
+       stateMachineName: `${id}`,
+       definitionBody: DefinitionBody.fromChainable(this.definition),
+       stateMachineType: StateMachineType.STANDARD,
+-      timeout: Duration.minutes(1),
+       logs: {
+         destination: new LogGroup(this, `${id}-id`, {
+           logGroupName: `/aws/states/${id}`,
+@@ -264,7 +403,15 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
+     });
+     this.stateMachine.role.addToPrincipalPolicy(
+       new PolicyStatement({
+-        actions: ["ecs:TagResource", "ec2:CreateTags"],
++        actions: [
++          "ecs:TagResource",
++          "ec2:CreateTags",
++          "elasticfilesystem:CreateAccessPoint",
++          "ecs:RegisterTaskDefinition",
++          "ecs:RunTask",
++          "ecs:DescribeTasks",
++          "ec2:DescribeNetworkInterfaces",
++        ],
+         resources: ["*"],
+       }),
+     );
+@@ -272,9 +419,8 @@ export class ServerProvisioningOrchestratorConstruct extends Construct {
+       new PolicyStatement({
+         actions: ["iam:PassRole"],
+         resources: [
+-          props.computeConstruct.instanceRole.roleArn,
+-          props.computeConstruct.taskDefinition.executionRole!.roleArn,
+-          props.computeConstruct.taskDefinition.taskRole.roleArn,
++          props.fargateConstruct.taskRole.roleArn,
++          props.fargateConstruct.taskExecutionRole.roleArn,
+         ],
+       }),
+     );
+diff --git a/lib/constructs/ServerTeardownOrchestratorConstruct.ts b/lib/constructs/ServerTeardownOrchestratorConstruct.ts
+index e45e120..d36ec94 100644
+--- a/lib/constructs/ServerTeardownOrchestratorConstruct.ts
++++ b/lib/constructs/ServerTeardownOrchestratorConstruct.ts
+@@ -4,12 +4,8 @@ import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+ import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
+ import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+ import { LogGroup } from "aws-cdk-lib/aws-logs";
+-import type { IBucket } from "aws-cdk-lib/aws-s3";
+ import {
+-  Choice,
+-  Condition,
+   DefinitionBody,
+-  Fail,
+   type IChainable,
+   IntegrationPattern,
+   JsonPath,
+@@ -17,8 +13,6 @@ import {
+   Pass,
+   StateMachine,
+   StateMachineType,
+-  Wait,
+-  WaitTime,
+ } from "aws-cdk-lib/aws-stepfunctions";
+ import {
+   CallAwsService,
+@@ -30,7 +24,6 @@ import { Construct } from "constructs";
+ 
+ export interface ServerTeardownOrchestratorProps extends StackProps {
+   serverHistoryTable: ITableV2;
+-  minecraftWorldsBucket: IBucket;
+ }
+ 
+ export class ServerTeardownOrchestratorConstruct extends Construct {
+@@ -44,102 +37,78 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
+   ) {
+     super(scope, id);
+ 
+-    const getInstanceId = new CallAwsService(this, "Get InstanceId", {
++    const getServerTaskTags = new CallAwsService(this, "Get server task tags", {
+       service: "ecs",
+-      action: "describeContainerInstances",
++      action: "describeTasks",
+       iamResources: ["*"],
+       parameters: {
+         Cluster: JsonPath.stringAt("$.detail.clusterArn"),
+-        ContainerInstances: JsonPath.array(
+-          JsonPath.stringAt("$.detail.containerInstanceArn"),
+-        ),
++        Tasks: JsonPath.array(JsonPath.stringAt("$.detail.taskArn")),
++        Include: ["TAGS"],
+       },
+       integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+       resultSelector: {
+-        "Ec2InstanceId.$": "$.ContainerInstances[0].Ec2InstanceId",
++        "Tags.$": "$.Tasks[0].Tags",
+       },
+-      resultPath: "$.getInstanceId",
++      resultPath: "$.getServerTaskTags",
+     });
+ 
+-    const syncToS3 = new CallAwsService(this, "Sync to S3", {
+-      service: "ssm",
+-      action: "sendCommand",
+-      iamResources: ["*"],
++    const extractTagValues = new Pass(this, "Extract tag values", {
+       parameters: {
+-        DocumentName: "AWS-RunShellScript",
+-        InstanceIds: JsonPath.array(
+-          JsonPath.stringAt("$.getInstanceId.Ec2InstanceId"),
+-        ),
+-        Parameters: {
+-          commands: [
+-            `
+-            set -e
+-            export TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+-            export USER_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/tags/instance/userId)
+-            aws s3 sync /minecraft_data s3://${props.minecraftWorldsBucket.bucketName}/$USER_ID --delete --only-show-errors --no-progress && true
+-            `,
+-          ],
+-        },
+-      },
+-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+-      resultSelector: {
+-        "CommandId.$": "$.Command.CommandId",
++        "serverId.$": "$.getServerTaskTags.Tags[?(@.Key=='serverId')].Value",
++        "startedAt.$": "$.getServerTaskTags.Tags[?(@.Key=='startedAt')].Value",
++        "taskDefinitionArn.$":
++          "$.getServerTaskTags.Tags[?(@.Key=='taskDefinitionArn')].Value",
++        "accessPointId.$":
++          "$.getServerTaskTags.Tags[?(@.Key=='accessPointId')].Value",
+       },
+-      resultPath: "$.syncToS3",
++      resultPath: "$.extractTagValues",
+     });
+ 
+-    const waitForSync = new Wait(this, "Wait for sync", {
+-      time: WaitTime.duration(Duration.seconds(10)),
+-    });
+-
+-    const getSyncStatus = new CallAwsService(this, "Get sync status", {
+-      service: "ssm",
+-      action: "getCommandInvocation",
++    const deleteAccessPoint = new CallAwsService(this, "Delete access point", {
++      service: "efs",
++      action: "deleteAccessPoint",
+       iamResources: ["*"],
+       parameters: {
+-        CommandId: JsonPath.stringAt("$.syncToS3.CommandId"),
+-        InstanceId: JsonPath.stringAt("$.getInstanceId.Ec2InstanceId"),
++        AccessPointId: JsonPath.stringAt("$.extractTagValues.accessPointId[0]"),
+       },
+       integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+-      resultSelector: {
+-        "Status.$": "$.Status",
+-      },
+-      resultPath: "$.getSyncStatus",
++      resultPath: "$.deleteAccessPoint",
+     });
+ 
+-    const terminateInstance = new CallAwsService(this, "Terminate instance", {
+-      service: "ec2",
+-      action: "terminateInstances",
+-      iamResources: ["*"],
+-      parameters: {
+-        InstanceIds: JsonPath.array(
+-          JsonPath.stringAt("$.getInstanceId.Ec2InstanceId"),
+-        ),
++    const deregisterTaskDefinition = new CallAwsService(
++      this,
++      "Deregister task definition",
++      {
++        service: "ecs",
++        action: "deregisterTaskDefinition",
++        iamResources: ["*"],
++        parameters: {
++          TaskDefinition: JsonPath.stringAt(
++            "$.extractTagValues.taskDefinitionArn[0]",
++          ),
++        },
++        integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
++        resultPath: "$.deregisterTaskDefinition",
+       },
+-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+-      resultPath: JsonPath.DISCARD,
+-    });
+-
+-    const syncFailed = new Fail(this, "Sync failed", {
+-      cause: "SSM Command Failed",
+-      error: "The S3 sync command did not return Success.",
+-    });
++    );
+ 
+-    const getServerTaskTags = new CallAwsService(this, "Get server task tags", {
+-      service: "ecs",
+-      action: "describeTasks",
+-      iamResources: ["*"],
+-      parameters: {
+-        Cluster: JsonPath.stringAt("$.detail.clusterArn"),
+-        Tasks: JsonPath.array(JsonPath.stringAt("$.detail.taskArn")),
+-        Include: ["TAGS"],
+-      },
+-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+-      resultSelector: {
+-        "Tags.$": "$.Tasks[0].Tags",
++    const deleteTaskDefinition = new CallAwsService(
++      this,
++      "Delete task definition",
++      {
++        service: "ecs",
++        action: "deleteTaskDefinitions",
++        iamResources: ["*"],
++        parameters: {
++          TaskDefinitions: JsonPath.array(
++            JsonPath.stringAt("$.extractTagValues.taskDefinitionArn[0]"),
++          ),
++        },
++        integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
++        resultPath: "$.deleteTaskDefinition",
+       },
+-      resultPath: "$.getServerTaskTags",
+-    });
++    );
+ 
+     const getCurrentTimeHandler = new NodejsFunction(
+       this,
+@@ -167,22 +136,14 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
+       resultPath: "$.getCurrentTime",
+     });
+ 
+-    const extractDdbKeys = new Pass(this, "Extract DDB Keys", {
+-      parameters: {
+-        "serverId.$": "$.getServerTaskTags.Tags[?(@.Key=='serverId')].Value",
+-        "startedAt.$": "$.getServerTaskTags.Tags[?(@.Key=='startedAt')].Value",
+-      },
+-      resultPath: "$.extractDdbKeys",
+-    });
+-
+     const updateDdbItem = new DynamoUpdateItem(this, "Update DDB item", {
+       table: props.serverHistoryTable,
+       key: {
+         serverId: DynamoAttributeValue.fromString(
+-          JsonPath.stringAt("$.extractDdbKeys.serverId[0]"),
++          JsonPath.stringAt("$.extractTagValues.serverId[0]"),
+         ),
+         startedAt: DynamoAttributeValue.fromNumber(
+-          JsonPath.numberAt("$.extractDdbKeys.startedAt[0]"),
++          JsonPath.numberAt("$.extractTagValues.startedAt[0]"),
+         ),
+       },
+       updateExpression: "SET serverStatus = :ss, endedAt = :ea",
+@@ -195,33 +156,14 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
+       resultPath: JsonPath.DISCARD,
+     });
+ 
+-    const successChain = terminateInstance
+-      .next(getServerTaskTags)
++    this.definition = getServerTaskTags
++      .next(extractTagValues)
++      .next(deleteAccessPoint)
++      .next(deregisterTaskDefinition)
++      .next(deleteTaskDefinition)
+       .next(getCurrentTime)
+-      .next(extractDdbKeys)
+       .next(updateDdbItem);
+ 
+-    const isSyncComplete = new Choice(this, "Is sync complete?")
+-      .when(
+-        Condition.stringEquals("$.getSyncStatus.Status", "Success"),
+-        successChain,
+-      )
+-      .when(
+-        Condition.or(
+-          Condition.stringEquals("$.getSyncStatus.Status", "Pending"),
+-          Condition.stringEquals("$.getSyncStatus.Status", "InProgress"),
+-          Condition.stringEquals("$.getSyncStatus.Status", "Delayed"),
+-        ),
+-        waitForSync,
+-      )
+-      .otherwise(syncFailed);
+-
+-    this.definition = getInstanceId
+-      .next(syncToS3)
+-      .next(waitForSync)
+-      .next(getSyncStatus)
+-      .next(isSyncComplete);
+-
+     this.stateMachine = new StateMachine(this, `${id}-StateMachine`, {
+       stateMachineName: `${id}`,
+       definitionBody: DefinitionBody.fromChainable(this.definition),
+@@ -240,11 +182,10 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
+     this.stateMachine.role.addToPrincipalPolicy(
+       new PolicyStatement({
+         actions: [
+-          "ecs:DescribeContainerInstances",
+           "ecs:DescribeTasks",
+-          "ssm:SendCommand",
+-          "ssm:GetCommandInvocation",
+-          "ec2:TerminateInstances",
++          "ecs:DeregisterTaskDefinition",
++          "ecs:DeleteTaskDefinitions",
++          "efs:DeleteAccessPoint",
+         ],
+         resources: ["*"],
+       }),
+diff --git a/lib/schemas/instanceCheckerPayload.ts b/lib/schemas/instanceCheckerPayload.ts
+index 876a3c7..c869885 100644
+--- a/lib/schemas/instanceCheckerPayload.ts
++++ b/lib/schemas/instanceCheckerPayload.ts
+@@ -1,17 +1,14 @@
+ import { z } from "zod";
+ 
+-export const InstanceCheckerEventSchema = z.object({
++export const ServerCheckerEventSchema = z.object({
+   clusterName: z.string().min(1, "clusterName is required"),
+-  ec2InstanceId: z.string().min(1, "ec2InstanceId is required"),
++  taskArn: z.string().min(1, "taskArn is required"),
+ });
+ 
+-export const InstanceCheckerResponseSchema = z.object({
+-  instanceIsReady: z.boolean(),
+-  containerInstanceArn: z.string().nullable(),
++export const ServerCheckerResponseSchema = z.object({
++  isServerReady: z.boolean(),
+   publicIp: z.string().nullable(),
+ });
+ 
+-export type InstanceCheckerEvent = z.infer<typeof InstanceCheckerEventSchema>;
+-export type InstanceCheckerResponse = z.infer<
+-  typeof InstanceCheckerResponseSchema
+->;
++export type ServerCheckerEvent = z.infer<typeof ServerCheckerEventSchema>;
++export type ServerCheckerResponse = z.infer<typeof ServerCheckerResponseSchema>;
+diff --git a/lib/schemas/serverConfigurationPayload.ts b/lib/schemas/serverConfigurationPayload.ts
+index 6fbad2d..661a3d3 100644
+--- a/lib/schemas/serverConfigurationPayload.ts
++++ b/lib/schemas/serverConfigurationPayload.ts
+@@ -1,27 +1,37 @@
+ import { z } from "zod";
+ 
+-export const ServerConfigurationPayloadSchema = z.object({
+-  version: z.string(),
+-  type: z.enum(["VANILLA", "FABRIC", "FORGE", "SPIGOT", "PAPER"]),
+-  spawn_protection: z.string().default("16"),
+-  seed: z.string().max(32).default(""),
+-  hardcore: z.enum(["true", "false"]).default("false"),
+-  allow_flight: z.enum(["TRUE", "FALSE"]).default("FALSE"),
+-  allow_nether: z.enum(["true", "false"]).default("true"),
+-  spawn_monsters: z.enum(["true", "false"]).default("true"),
+-  online_mode: z.enum(["true", "false"]).default("true"),
+-  generate_structures: z.enum(["true", "false"]).default("true"),
+-  level_type: z.enum(["minecraft:normal", "minecraft:flat", "minecraft:large_biomes", "minecraft:amplified"])
+-    .default("minecraft:normal"),
+-  network_compression_threshold: z.string().default("256"),
+-  simulation_distance: z.string().default("4"),
+-  difficulty: z.enum(["peaceful", "easy", "normal", "hard"]).default("easy"),
+-  mode: z.enum(["creative", "survival", "adventure"]).default("creative"),
+-  spawn_animals: z.enum(["true", "false"]).default("true"),
+-  view_distance: z.string().default("8"),
+-  max_players: z.string().default("20"),
+-  sync_chunk_writes: z.enum(["true", "false"]).default("true"),
+-  spawn_npcs: z.enum(["true", "false"]).default("true"),
+-}).strict();
++export const ServerConfigurationPayloadSchema = z
++  .object({
++    version: z.string(),
++    type: z.enum(["VANILLA", "FABRIC", "FORGE", "SPIGOT", "PAPER"]),
++    spawn_protection: z.string().default("16"),
++    seed: z.string().max(32).default(""),
++    hardcore: z.enum(["true", "false"]).default("false"),
++    allow_flight: z.enum(["TRUE", "FALSE"]).default("FALSE"),
++    allow_nether: z.enum(["true", "false"]).default("true"),
++    spawn_monsters: z.enum(["true", "false"]).default("true"),
++    online_mode: z.enum(["true", "false"]).default("true"),
++    generate_structures: z.enum(["true", "false"]).default("true"),
++    level_type: z
++      .enum([
++        "minecraft:normal",
++        "minecraft:flat",
++        "minecraft:large_biomes",
++        "minecraft:amplified",
++      ])
++      .default("minecraft:normal"),
++    network_compression_threshold: z.string().default("256"),
++    simulation_distance: z.string().default("4"),
++    difficulty: z.enum(["peaceful", "easy", "normal", "hard"]).default("easy"),
++    mode: z.enum(["creative", "survival", "adventure"]).default("creative"),
++    spawn_animals: z.enum(["true", "false"]).default("true"),
++    view_distance: z.string().default("8"),
++    max_players: z.string().default("20"),
++    sync_chunk_writes: z.enum(["true", "false"]).default("true"),
++    spawn_npcs: z.enum(["true", "false"]).default("true"),
++  })
++  .strict();
+ 
+-export type ServerConfigurationPayload = z.infer<typeof ServerConfigurationPayloadSchema>;
+\ No newline at end of file
++export type ServerConfigurationPayload = z.infer<
++  typeof ServerConfigurationPayloadSchema
++>;
+diff --git a/lib/stacks/minecraftOnDemandServiceStack.ts b/lib/stacks/minecraftOnDemandServiceStack.ts
+index bfe69b6..6a64cb7 100644
+--- a/lib/stacks/minecraftOnDemandServiceStack.ts
++++ b/lib/stacks/minecraftOnDemandServiceStack.ts
+@@ -6,18 +6,24 @@ import {
+   TokenAuthorizer,
+ } from "aws-cdk-lib/aws-apigateway";
+ import type { ITableV2 } from "aws-cdk-lib/aws-dynamodb";
++import type { IVpc } from "aws-cdk-lib/aws-ec2";
++import type { IAccessPoint } from "aws-cdk-lib/aws-efs";
+ import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+-import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
++import {
++  Architecture,
++  FileSystem as LambdaFileSystem,
++  Runtime,
++} from "aws-cdk-lib/aws-lambda";
+ import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
+-import type {IBucket} from "aws-cdk-lib/aws-s3";
+ import type { Construct } from "constructs";
+-import { USER_ID_INDEX_NAME } from "../constants.js";
++import { FARGATE_CLUSTER_NAME, USER_ID_INDEX_NAME } from "../constants.js";
+ 
+ export interface MinecraftOnDemandServiceStackProps extends StackProps {
+   serverHistoryTable: ITableV2;
+   serverConfigurationTable: ITableV2;
+-  minecraftWorldsBucket: IBucket;
+-  clusterArn: string;
++  modpackTable: ITableV2;
++  vpc: IVpc;
++  efsAccessPoint: IAccessPoint;
+ }
+ 
+ export class MinecraftOnDemandServiceStack extends Stack {
+@@ -59,6 +65,7 @@ export class MinecraftOnDemandServiceStack extends Stack {
+ 
+     const api = new RestApi(this, "MinecraftOnDemandApi", {
+       restApiName: "MinecraftOnDemandApi",
++      minimumCompressionSize: 2048,
+       defaultMethodOptions: {
+         authorizer: tokenAuthorizer,
+       },
+@@ -72,6 +79,9 @@ export class MinecraftOnDemandServiceStack extends Stack {
+     const serversConfigurationResource = api.root.addResource("server-configuration");
+     const storageResource = api.root.addResource("storage");
+     const serverIdResource = serversResource.addResource("{serverId}");
++    const modpacksResource = api.root.addResource("modpacks");
++    const modpackIdResource = modpacksResource.addResource("{modpackId}");
++
+ 
+     const serverRequestValidator = new NodejsFunction(
+       this,
+@@ -86,8 +96,10 @@ export class MinecraftOnDemandServiceStack extends Stack {
+           import.meta.url,
+         ).pathname,
+         environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
+           SERVER_HISTORY_TABLE_NAME: props.serverHistoryTable.tableName,
+-          SERVER_CONFIGURATIONS_TABLE_NAME: props.serverConfigurationTable.tableName
++          SERVER_CONFIGURATIONS_TABLE_NAME:
++            props.serverConfigurationTable.tableName,
+         },
+         bundling: {
+           minify: true,
+@@ -117,7 +129,10 @@ export class MinecraftOnDemandServiceStack extends Stack {
+           "../../lambdas/getServerStatusHandler.ts",
+           import.meta.url,
+         ).pathname,
+-        environment: { TABLE_NAME: props.serverHistoryTable.tableName },
++        environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
++          TABLE_NAME: props.serverHistoryTable.tableName,
++        },
+         bundling: {
+           minify: true,
+           format: OutputFormat.ESM,
+@@ -146,13 +161,19 @@ export class MinecraftOnDemandServiceStack extends Stack {
+           import.meta.url,
+         ).pathname,
+         environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
+           TABLE_NAME: props.serverHistoryTable.tableName,
+           USER_ID_INDEX_NAME: USER_ID_INDEX_NAME,
+         },
+         bundling: {
+           minify: true,
+           format: OutputFormat.ESM,
+-          nodeModules: ["@middy/core", "@middy/http-cors", "@ctrl/ts-base32", "uint8array-extras"],
++          nodeModules: [
++            "@middy/core",
++            "@middy/http-cors",
++            "@ctrl/ts-base32",
++            "uint8array-extras",
++          ],
+           externalModules: ["@aws-sdk/*"],
+         },
+       },
+@@ -176,8 +197,9 @@ export class MinecraftOnDemandServiceStack extends Stack {
+           import.meta.url,
+         ).pathname,
+         environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
+           TABLE_NAME: props.serverHistoryTable.tableName,
+-          CLUSTER_ARN: props.clusterArn,
++          CLUSTER_ARN: `arn:aws:ecs:${Stack.of(this).region}:${Stack.of(this).account}:cluster/${FARGATE_CLUSTER_NAME}`,
+         },
+         bundling: {
+           minify: true,
+@@ -255,7 +277,9 @@ export class MinecraftOnDemandServiceStack extends Stack {
+         },
+       },
+     );
+-    props.serverConfigurationTable.grantWriteData(putServerConfigurationHandler);
++    props.serverConfigurationTable.grantWriteData(
++      putServerConfigurationHandler,
++    );
+ 
+     serversConfigurationResource.addMethod(
+       "PUT",
+@@ -276,8 +300,13 @@ export class MinecraftOnDemandServiceStack extends Stack {
+         ).pathname,
+         environment: {
+           POWERTOOLS_LOGGER_LOG_EVENT: "true",
+-          BUCKET_NAME: props.minecraftWorldsBucket.bucketName,
++          MOUNT_PATH: "/mnt/efs",
+         },
++        vpc: props.vpc,
++        filesystem: LambdaFileSystem.fromEfsAccessPoint(
++          props.efsAccessPoint,
++          "/mnt/efs",
++        ),
+         bundling: {
+           minify: true,
+           format: OutputFormat.ESM,
+@@ -286,13 +315,161 @@ export class MinecraftOnDemandServiceStack extends Stack {
+         },
+       },
+     );
+-    props.minecraftWorldsBucket.grantRead(deleteServerStorageHandler);
+-    props.minecraftWorldsBucket.grantDelete(deleteServerStorageHandler);
+ 
+     storageResource.addMethod(
+       "DELETE",
+       new LambdaIntegration(deleteServerStorageHandler, { proxy: true }),
+     );
+ 
++    const getModpacksHandler = new NodejsFunction(
++      this,
++      "GetModpacksHandler",
++      {
++        runtime: Runtime.NODEJS_22_X,
++        architecture: Architecture.ARM_64,
++        memorySize: 1024,
++        timeout: Duration.minutes(1),
++        entry: new URL(
++          "../../lambdas/getModpacksHandler.ts",
++          import.meta.url,
++        ).pathname,
++        environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
++          TABLE_NAME: props.modpackTable.tableName,
++          USER_ID_INDEX_NAME: USER_ID_INDEX_NAME,
++        },
++        bundling: {
++          minify: true,
++          format: OutputFormat.ESM,
++          nodeModules: ["zod", "@middy/core", "@middy/http-cors"],
++          externalModules: ["@aws-sdk/*"],
++        },
++      },
++    );
++    props.modpackTable.grantReadData(getModpacksHandler);
++    modpacksResource.addMethod(
++      "GET",
++      new LambdaIntegration(getModpacksHandler, { proxy: true }),
++    );
++
++    const postModpackHandler = new NodejsFunction(
++      this,
++      "PostModpackHandler",
++      {
++        runtime: Runtime.NODEJS_22_X,
++        architecture: Architecture.ARM_64,
++        memorySize: 1024,
++        timeout: Duration.minutes(1),
++        entry: new URL(
++          "../../lambdas/postModpackHandler.ts",
++          import.meta.url,
++        ).pathname,
++        environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
++          TABLE_NAME: props.modpackTable.tableName,
++        },
++        bundling: {
++          minify: true,
++          format: OutputFormat.ESM,
++          nodeModules: ["zod", "@middy/core", "@middy/http-cors"],
++          externalModules: ["@aws-sdk/*"],
++        },
++      },
++    );
++    props.modpackTable.grantWriteData(postModpackHandler);
++    modpacksResource.addMethod(
++      "POST",
++      new LambdaIntegration(postModpackHandler, { proxy: true }),
++    );
++
++    const getModpackByIdHandler = new NodejsFunction(
++      this,
++      "GetModpackByIdHandler",
++      {
++        runtime: Runtime.NODEJS_22_X,
++        architecture: Architecture.ARM_64,
++        memorySize: 1024,
++        timeout: Duration.minutes(1),
++        entry: new URL(
++          "../../lambdas/getModpackByIdHandler.ts",
++          import.meta.url,
++        ).pathname,
++        environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
++          TABLE_NAME: props.modpackTable.tableName,
++        },
++        bundling: {
++          minify: true,
++          format: OutputFormat.ESM,
++          nodeModules: ["zod", "@middy/core", "@middy/http-cors"],
++          externalModules: ["@aws-sdk/*"],
++        },
++      },
++    );
++    props.modpackTable.grantReadData(getModpackByIdHandler);
++    modpackIdResource.addMethod(
++      "GET",
++      new LambdaIntegration(getModpackByIdHandler, { proxy: true }),
++    );
++
++    const putModpackByIdHandler = new NodejsFunction(
++      this,
++      "PutModpackByIdHandler",
++      {
++        runtime: Runtime.NODEJS_22_X,
++        architecture: Architecture.ARM_64,
++        memorySize: 1024,
++        timeout: Duration.minutes(1),
++        entry: new URL(
++          "../../lambdas/putModpackByIdHandler.ts",
++          import.meta.url,
++        ).pathname,
++        environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
++          TABLE_NAME: props.modpackTable.tableName,
++        },
++        bundling: {
++          minify: true,
++          format: OutputFormat.ESM,
++          nodeModules: ["zod", "@middy/core", "@middy/http-cors"],
++          externalModules: ["@aws-sdk/*"],
++        },
++      },
++    );
++    props.modpackTable.grantReadWriteData(putModpackByIdHandler);
++    modpackIdResource.addMethod(
++      "PUT",
++      new LambdaIntegration(putModpackByIdHandler, { proxy: true }),
++    );
++
++    const deleteModpackByIdHandler = new NodejsFunction(
++      this,
++      "DeleteModpackByIdHandler",
++      {
++        runtime: Runtime.NODEJS_22_X,
++        architecture: Architecture.ARM_64,
++        memorySize: 1024,
++        timeout: Duration.minutes(1),
++        entry: new URL(
++          "../../lambdas/deleteModpackByIdHandler.ts",
++          import.meta.url,
++        ).pathname,
++        environment: {
++          POWERTOOLS_LOGGER_LOG_EVENT: "true",
++          TABLE_NAME: props.modpackTable.tableName,
++        },
++        bundling: {
++          minify: true,
++          format: OutputFormat.ESM,
++          nodeModules: ["zod", "@middy/core", "@middy/http-cors"],
++          externalModules: ["@aws-sdk/*"],
++        },
++      },
++    );
++    props.modpackTable.grantReadWriteData(deleteModpackByIdHandler);
++    modpackIdResource.addMethod(
++      "DELETE",
++      new LambdaIntegration(deleteModpackByIdHandler, { proxy: true }),
++    );
+   }
+ }
+diff --git a/lib/stacks/networkStack.ts b/lib/stacks/networkStack.ts
+index 92df36c..88722af 100644
+--- a/lib/stacks/networkStack.ts
++++ b/lib/stacks/networkStack.ts
+@@ -40,8 +40,7 @@ export class NetworkStack extends Stack {
+     });
+ 
+     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.HTTPS);
+-    this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.HTTP);
+-
++    this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.NFS);
+     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(25565));
+     this.securityGroup.addIngressRule(Peer.anyIpv4(), Port.udp(25565));
+   }
+diff --git a/lib/stacks/serverOrchestrationStack.ts b/lib/stacks/serverOrchestrationStack.ts
+index 0b95d1b..01a0f85 100644
+--- a/lib/stacks/serverOrchestrationStack.ts
++++ b/lib/stacks/serverOrchestrationStack.ts
+@@ -18,22 +18,27 @@ import type { ITableV2 } from "aws-cdk-lib/aws-dynamodb";
+ import type { ISecurityGroup, IVpc } from "aws-cdk-lib/aws-ec2";
+ import { Rule } from "aws-cdk-lib/aws-events";
+ import { SfnStateMachine } from "aws-cdk-lib/aws-events-targets";
+-import { PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+-import type { IBucket } from "aws-cdk-lib/aws-s3";
++import {
++  Policy,
++  PolicyStatement,
++  Role,
++  ServicePrincipal,
++} from "aws-cdk-lib/aws-iam";
+ import type { Construct } from "constructs";
+-import { ComputeConstruct } from "../constructs/ComputeConstruct.js";
+-import { ServerProvisioningOrchestratorConstruct } from "../constructs/ServerProvisioningOrchestratorConstruct.js";
+-import { ServerTeardownOrchestratorConstruct } from "../constructs/ServerTeardownOrchestratorConstruct.js";
++import type { EfsConstruct } from "../constructs/efsConstruct.js";
++import { FargateConstruct } from "../constructs/fargateConstruct.js";
++import { ServerProvisioningOrchestratorConstruct } from "../constructs/serverProvisioningOrchestratorConstruct.js";
++import { ServerTeardownOrchestratorConstruct } from "../constructs/serverTeardownOrchestratorConstruct.js";
+ 
+ export interface ServerOrchestrationStackProps extends StackProps {
+   vpc: IVpc;
+   securityGroup: ISecurityGroup;
+   serverHistoryTable: ITableV2;
+-  minecraftWorldsBucket: IBucket;
++  efsConstruct: EfsConstruct;
+ }
+ 
+ export class ServerOrchestrationStack extends Stack {
+-  readonly computeConstruct: ComputeConstruct;
++  readonly fargateConstruct: FargateConstruct;
+ 
+   constructor(
+     scope: Construct,
+@@ -42,11 +47,28 @@ export class ServerOrchestrationStack extends Stack {
+   ) {
+     super(scope, id, props);
+ 
+-    this.computeConstruct = new ComputeConstruct(this, "Compute", {
++    this.fargateConstruct = new FargateConstruct(this, "FargateConstruct", {
+       vpc: props.vpc,
+-      minecraftWorldsBucket: props.minecraftWorldsBucket,
+     });
+ 
++    const efsReadWritePolicy = new Policy(this, "EfsReadWritePolicy", {
++      statements: [
++        new PolicyStatement({
++          actions: [
++            "elasticfilesystem:ClientMount",
++            "elasticfilesystem:ClientWrite",
++            "elasticfilesystem:ClientRootAccess",
++            "elasticfilesystem:DescribeFileSystems",
++            "elasticfilesystem:DescribeMountTargets",
++            "elasticfilesystem:DescribeAccessPoints",
++          ],
++          resources: [props.efsConstruct.filesystem.fileSystemArn],
++        }),
++      ],
++    });
++    efsReadWritePolicy.attachToRole(this.fargateConstruct.taskRole);
++    efsReadWritePolicy.attachToRole(this.fargateConstruct.taskExecutionRole);
++
+     const serverProvisioningOrchestrator =
+       new ServerProvisioningOrchestratorConstruct(
+         this,
+@@ -55,8 +77,8 @@ export class ServerOrchestrationStack extends Stack {
+           vpc: props.vpc,
+           securityGroup: props.securityGroup,
+           serverHistoryTable: props.serverHistoryTable,
+-          minecraftWorldsBucket: props.minecraftWorldsBucket,
+-          computeConstruct: this.computeConstruct,
++          efsConstruct: props.efsConstruct,
++          fargateConstruct: this.fargateConstruct,
+         },
+       );
+ 
+@@ -106,26 +128,66 @@ export class ServerOrchestrationStack extends Stack {
+             ),
+             userId: DynamicInput.fromEventPath("$.dynamodb.NewImage.userId.S"),
+             serverConfig: {
+-              version: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.version.S"),
+-              type: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.type.S"),
+-              allow_flight: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.allow_flight.S"),
+-              allow_nether: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.allow_nether.S"),
+-              difficulty: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.difficulty.S"),
+-              generate_structures: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.generate_structures.S"),
+-              hardcore: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.hardcore.S"),
+-              level_type: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.level_type.S"),
+-              max_players: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.max_players.S"),
+-              mode: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.mode.S"),
+-              network_compression_threshold: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.network_compression_threshold.S"),
+-              online_mode: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.online_mode.S"),
+-              seed: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.seed.S"),
+-              simulation_distance: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.simulation_distance.S"),
+-              spawn_animals: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_animals.S"),
+-              spawn_monsters: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_monsters.S"),
+-              spawn_npcs: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_npcs.S"),
+-              spawn_protection: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_protection.S"),
+-              sync_chunk_writes: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.sync_chunk_writes.S"),
+-              view_distance: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.view_distance.S"),
++              version: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.version.S",
++              ),
++              type: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.type.S",
++              ),
++              allow_flight: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.allow_flight.S",
++              ),
++              allow_nether: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.allow_nether.S",
++              ),
++              difficulty: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.difficulty.S",
++              ),
++              generate_structures: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.generate_structures.S",
++              ),
++              hardcore: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.hardcore.S",
++              ),
++              level_type: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.level_type.S",
++              ),
++              max_players: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.max_players.S",
++              ),
++              mode: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.mode.S",
++              ),
++              network_compression_threshold: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.network_compression_threshold.S",
++              ),
++              online_mode: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.online_mode.S",
++              ),
++              seed: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.seed.S",
++              ),
++              simulation_distance: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.simulation_distance.S",
++              ),
++              spawn_animals: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.spawn_animals.S",
++              ),
++              spawn_monsters: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.spawn_monsters.S",
++              ),
++              spawn_npcs: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.spawn_npcs.S",
++              ),
++              spawn_protection: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.spawn_protection.S",
++              ),
++              sync_chunk_writes: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.sync_chunk_writes.S",
++              ),
++              view_distance: DynamicInput.fromEventPath(
++                "$.dynamodb.NewImage.serverConfig.M.view_distance.S",
++              ),
+             },
+           }),
+         },
+@@ -137,7 +199,6 @@ export class ServerOrchestrationStack extends Stack {
+       "ServerTeardownOrchestrator",
+       {
+         serverHistoryTable: props.serverHistoryTable,
+-        minecraftWorldsBucket: props.minecraftWorldsBucket,
+       },
+     );
+ 
+@@ -146,7 +207,7 @@ export class ServerOrchestrationStack extends Stack {
+         source: ["aws.ecs"],
+         detailType: ["ECS Task State Change"],
+         detail: {
+-          clusterArn: [this.computeConstruct.cluster.clusterArn],
++          clusterArn: [this.fargateConstruct.cluster.clusterArn],
+           lastStatus: ["STOPPED"],
+           group: ["minecraft-on-demand"],
+         },
+diff --git a/lib/stacks/storageStack.ts b/lib/stacks/storageStack.ts
+index e8c1a32..002d645 100644
+--- a/lib/stacks/storageStack.ts
++++ b/lib/stacks/storageStack.ts
+@@ -6,29 +6,30 @@ import {
+   StreamViewType,
+   TableV2,
+ } from "aws-cdk-lib/aws-dynamodb";
+-import {
+-  BlockPublicAccess,
+-  Bucket,
+-  BucketEncryption,
+-  type IBucket,
+-} from "aws-cdk-lib/aws-s3";
++import type { IVpc } from "aws-cdk-lib/aws-ec2";
+ import type { Construct } from "constructs";
+ import { USER_ID_INDEX_NAME } from "../constants.js";
++import { EfsConstruct } from "../constructs/efsConstruct.js";
++
++export interface StorageStackProps extends StackProps {
++  vpc: IVpc;
++}
+ 
+ export class StorageStack extends Stack {
+   readonly serverHistoryTable: ITableV2;
+   readonly serverConfigurationTable: ITableV2;
+-  readonly minecraftWorldsBucket: IBucket;
++  readonly modpackTable: ITableV2;
++  readonly efsConstruct: EfsConstruct;
+ 
+-  constructor(scope: Construct, id: string, props?: StackProps) {
++  constructor(scope: Construct, id: string, props: StorageStackProps) {
+     super(scope, id, props);
+     this.serverHistoryTable = new TableV2(this, "ServerHistory", {
+       tableName: "ServerHistory",
+       partitionKey: { name: "serverId", type: AttributeType.STRING },
+       sortKey: { name: "startedAt", type: AttributeType.NUMBER },
+       billing: Billing.onDemand(),
+-      deletionProtection: true,
+-      removalPolicy: RemovalPolicy.RETAIN,
++      deletionProtection: false,
++      removalPolicy: RemovalPolicy.DESTROY,
+       dynamoStream: StreamViewType.NEW_IMAGE,
+       globalSecondaryIndexes: [
+         {
+@@ -43,29 +44,28 @@ export class StorageStack extends Stack {
+       tableName: "ServerConfiguration",
+       partitionKey: { name: "userId", type: AttributeType.STRING },
+       billing: Billing.onDemand(),
+-      deletionProtection: true,
+-      removalPolicy: RemovalPolicy.RETAIN,
++      deletionProtection: false,
++      removalPolicy: RemovalPolicy.DESTROY,
+     });
+ 
+-    const minecraftWorldsAccessLogsBucket = new Bucket(
+-      this,
+-      "MinecraftWorldsAccessLogs",
+-      {
+-        blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+-        encryption: BucketEncryption.S3_MANAGED,
+-        enforceSSL: true,
+-        publicReadAccess: false,
+-        removalPolicy: RemovalPolicy.RETAIN,
+-      },
+-    );
++    this.modpackTable = new TableV2(this, "Modpacks", {
++      tableName: "Modpacks",
++      partitionKey: { name: "modpackId", type: AttributeType.STRING },
++      sortKey: { name: "createdAt", type: AttributeType.NUMBER },
++      billing: Billing.onDemand(),
++      deletionProtection: false,
++      removalPolicy: RemovalPolicy.DESTROY,
++      globalSecondaryIndexes: [
++        {
++          indexName: USER_ID_INDEX_NAME,
++          partitionKey: { name: "userId", type: AttributeType.STRING },
++          sortKey: { name: "createdAt", type: AttributeType.NUMBER },
++        },
++      ],
++    });
+ 
+-    this.minecraftWorldsBucket = new Bucket(this, "MinecraftWorlds", {
+-      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+-      encryption: BucketEncryption.S3_MANAGED,
+-      enforceSSL: true,
+-      publicReadAccess: false,
+-      removalPolicy: RemovalPolicy.RETAIN,
+-      serverAccessLogsBucket: minecraftWorldsAccessLogsBucket,
++    this.efsConstruct = new EfsConstruct(this, "SharedEfs", {
++      vpc: props.vpc,
+     });
+   }
+ }

@@ -6,29 +6,30 @@ import {
   StreamViewType,
   TableV2,
 } from "aws-cdk-lib/aws-dynamodb";
-import {
-  BlockPublicAccess,
-  Bucket,
-  BucketEncryption,
-  type IBucket,
-} from "aws-cdk-lib/aws-s3";
+import type { IVpc } from "aws-cdk-lib/aws-ec2";
 import type { Construct } from "constructs";
 import { USER_ID_INDEX_NAME } from "../constants.js";
+import { EfsConstruct } from "../constructs/efsConstruct.js";
+
+export interface StorageStackProps extends StackProps {
+  vpc: IVpc;
+}
 
 export class StorageStack extends Stack {
   readonly serverHistoryTable: ITableV2;
   readonly serverConfigurationTable: ITableV2;
-  readonly minecraftWorldsBucket: IBucket;
+  readonly modpackTable: ITableV2;
+  readonly efsConstruct: EfsConstruct;
 
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: StorageStackProps) {
     super(scope, id, props);
     this.serverHistoryTable = new TableV2(this, "ServerHistory", {
       tableName: "ServerHistory",
       partitionKey: { name: "serverId", type: AttributeType.STRING },
       sortKey: { name: "startedAt", type: AttributeType.NUMBER },
       billing: Billing.onDemand(),
-      deletionProtection: true,
-      removalPolicy: RemovalPolicy.RETAIN,
+      deletionProtection: false,
+      removalPolicy: RemovalPolicy.DESTROY,
       dynamoStream: StreamViewType.NEW_IMAGE,
       globalSecondaryIndexes: [
         {
@@ -43,29 +44,28 @@ export class StorageStack extends Stack {
       tableName: "ServerConfiguration",
       partitionKey: { name: "userId", type: AttributeType.STRING },
       billing: Billing.onDemand(),
-      deletionProtection: true,
-      removalPolicy: RemovalPolicy.RETAIN,
+      deletionProtection: false,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
 
-    const minecraftWorldsAccessLogsBucket = new Bucket(
-      this,
-      "MinecraftWorldsAccessLogs",
-      {
-        blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-        encryption: BucketEncryption.S3_MANAGED,
-        enforceSSL: true,
-        publicReadAccess: false,
-        removalPolicy: RemovalPolicy.RETAIN,
-      },
-    );
+    this.modpackTable = new TableV2(this, "Modpacks", {
+      tableName: "Modpacks",
+      partitionKey: { name: "modpackId", type: AttributeType.STRING },
+      sortKey: { name: "createdAt", type: AttributeType.NUMBER },
+      billing: Billing.onDemand(),
+      deletionProtection: false,
+      removalPolicy: RemovalPolicy.DESTROY,
+      globalSecondaryIndexes: [
+        {
+          indexName: USER_ID_INDEX_NAME,
+          partitionKey: { name: "userId", type: AttributeType.STRING },
+          sortKey: { name: "createdAt", type: AttributeType.NUMBER },
+        },
+      ],
+    });
 
-    this.minecraftWorldsBucket = new Bucket(this, "MinecraftWorlds", {
-      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-      encryption: BucketEncryption.S3_MANAGED,
-      enforceSSL: true,
-      publicReadAccess: false,
-      removalPolicy: RemovalPolicy.RETAIN,
-      serverAccessLogsBucket: minecraftWorldsAccessLogsBucket,
+    this.efsConstruct = new EfsConstruct(this, "SharedEfs", {
+      vpc: props.vpc,
     });
   }
 }

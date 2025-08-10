@@ -1,10 +1,10 @@
 import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
-import { base32Decode, base32Encode } from '@ctrl/ts-base32';
+import { base32Decode, base32Encode } from "@ctrl/ts-base32";
 import middy from "@middy/core";
 import httpCors from "@middy/http-cors";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import {stringToUint8Array, uint8ArrayToString} from "uint8array-extras";
+import { stringToUint8Array, uint8ArrayToString } from "uint8array-extras";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 const USER_ID_INDEX_NAME = process.env.USER_ID_INDEX_NAME!;
@@ -29,7 +29,9 @@ export const lambdaFunction = async (
             S: userId,
           },
         },
-        ExclusiveStartKey: afterKey ? JSON.parse(uint8ArrayToString(base32Decode(afterKey))) : undefined,
+        ExclusiveStartKey: afterKey
+          ? JSON.parse(uint8ArrayToString(base32Decode(afterKey)))
+          : undefined,
         Limit: limit ? Math.min(parseInt(limit), 100) : 10,
         ScanIndexForward: false,
         ConsistentRead: false,
@@ -38,7 +40,9 @@ export const lambdaFunction = async (
 
     let lastEvaluatedKey: string | undefined;
     if (queryResponse.LastEvaluatedKey) {
-      lastEvaluatedKey = base32Encode(stringToUint8Array(JSON.stringify(queryResponse.LastEvaluatedKey)));
+      lastEvaluatedKey = base32Encode(
+        stringToUint8Array(JSON.stringify(queryResponse.LastEvaluatedKey)),
+      );
     }
 
     const serverHistoryItems = (queryResponse.Items ?? []).map((item) =>
@@ -46,27 +50,28 @@ export const lambdaFunction = async (
     );
 
     const items = serverHistoryItems.map(
-          ({
-            serverId,
-            startedAt,
-            endedAt,
-            serverStatus,
-            serverConfig,
-            publicIp,
-          }) => ({
-            serverId,
-            startedAt,
-            endedAt,
-            serverStatus,
-            serverConfig,
-            publicIp,
-          }),
-        );
+      ({
+        serverId,
+        startedAt,
+        endedAt,
+        serverStatus,
+        serverConfig,
+        publicIp,
+      }) => ({
+        serverId,
+        startedAt,
+        endedAt,
+        serverStatus,
+        serverConfig,
+        publicIp,
+      }),
+    );
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        items, lastEvaluatedKey
+        items,
+        lastEvaluatedKey,
       }),
     };
   } catch (error: unknown) {

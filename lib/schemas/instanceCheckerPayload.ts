@@ -1,17 +1,14 @@
 import { z } from "zod";
 
-export const InstanceCheckerEventSchema = z.object({
+export const ServerCheckerEventSchema = z.object({
   clusterName: z.string().min(1, "clusterName is required"),
-  ec2InstanceId: z.string().min(1, "ec2InstanceId is required"),
+  taskArn: z.string().min(1, "taskArn is required"),
 });
 
-export const InstanceCheckerResponseSchema = z.object({
-  instanceIsReady: z.boolean(),
-  containerInstanceArn: z.string().nullable(),
+export const ServerCheckerResponseSchema = z.object({
+  isServerReady: z.boolean(),
   publicIp: z.string().nullable(),
 });
 
-export type InstanceCheckerEvent = z.infer<typeof InstanceCheckerEventSchema>;
-export type InstanceCheckerResponse = z.infer<
-  typeof InstanceCheckerResponseSchema
->;
+export type ServerCheckerEvent = z.infer<typeof ServerCheckerEventSchema>;
+export type ServerCheckerResponse = z.infer<typeof ServerCheckerResponseSchema>;

@@ -4,12 +4,8 @@ import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
-import type { IBucket } from "aws-cdk-lib/aws-s3";
 import {
-  Choice,
-  Condition,
   DefinitionBody,
-  Fail,
   type IChainable,
   IntegrationPattern,
   JsonPath,
@@ -17,8 +13,6 @@ import {
   Pass,
   StateMachine,
   StateMachineType,
-  Wait,
-  WaitTime,
 } from "aws-cdk-lib/aws-stepfunctions";
 import {
   CallAwsService,
@@ -30,7 +24,6 @@ import { Construct } from "constructs";
 
 export interface ServerTeardownOrchestratorProps extends StackProps {
   serverHistoryTable: ITableV2;
-  minecraftWorldsBucket: IBucket;
 }
 
 export class ServerTeardownOrchestratorConstruct extends Construct {
@@ -43,87 +36,6 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
     props: ServerTeardownOrchestratorProps,
   ) {
     super(scope, id);
-
-    const getInstanceId = new CallAwsService(this, "Get InstanceId", {
-      service: "ecs",
-      action: "describeContainerInstances",
-      iamResources: ["*"],
-      parameters: {
-        Cluster: JsonPath.stringAt("$.detail.clusterArn"),
-        ContainerInstances: JsonPath.array(
-          JsonPath.stringAt("$.detail.containerInstanceArn"),
-        ),
-      },
-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
-      resultSelector: {
-        "Ec2InstanceId.$": "$.ContainerInstances[0].Ec2InstanceId",
-      },
-      resultPath: "$.getInstanceId",
-    });
-
-    const syncToS3 = new CallAwsService(this, "Sync to S3", {
-      service: "ssm",
-      action: "sendCommand",
-      iamResources: ["*"],
-      parameters: {
-        DocumentName: "AWS-RunShellScript",
-        InstanceIds: JsonPath.array(
-          JsonPath.stringAt("$.getInstanceId.Ec2InstanceId"),
-        ),
-        Parameters: {
-          commands: [
-            `
-            set -e
-            export TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-            export USER_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/tags/instance/userId)
-            aws s3 sync /minecraft_data s3://${props.minecraftWorldsBucket.bucketName}/$USER_ID --delete --only-show-errors --no-progress && true
-            `,
-          ],
-        },
-      },
-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
-      resultSelector: {
-        "CommandId.$": "$.Command.CommandId",
-      },
-      resultPath: "$.syncToS3",
-    });
-
-    const waitForSync = new Wait(this, "Wait for sync", {
-      time: WaitTime.duration(Duration.seconds(10)),
-    });
-
-    const getSyncStatus = new CallAwsService(this, "Get sync status", {
-      service: "ssm",
-      action: "getCommandInvocation",
-      iamResources: ["*"],
-      parameters: {
-        CommandId: JsonPath.stringAt("$.syncToS3.CommandId"),
-        InstanceId: JsonPath.stringAt("$.getInstanceId.Ec2InstanceId"),
-      },
-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
-      resultSelector: {
-        "Status.$": "$.Status",
-      },
-      resultPath: "$.getSyncStatus",
-    });
-
-    const terminateInstance = new CallAwsService(this, "Terminate instance", {
-      service: "ec2",
-      action: "terminateInstances",
-      iamResources: ["*"],
-      parameters: {
-        InstanceIds: JsonPath.array(
-          JsonPath.stringAt("$.getInstanceId.Ec2InstanceId"),
-        ),
-      },
-      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
-      resultPath: JsonPath.DISCARD,
-    });
-
-    const syncFailed = new Fail(this, "Sync failed", {
-      cause: "SSM Command Failed",
-      error: "The S3 sync command did not return Success.",
-    });
 
     const getServerTaskTags = new CallAwsService(this, "Get server task tags", {
       service: "ecs",
@@ -140,6 +52,63 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
       },
       resultPath: "$.getServerTaskTags",
     });
+
+    const extractTagValues = new Pass(this, "Extract tag values", {
+      parameters: {
+        "serverId.$": "$.getServerTaskTags.Tags[?(@.Key=='serverId')].Value",
+        "startedAt.$": "$.getServerTaskTags.Tags[?(@.Key=='startedAt')].Value",
+        "taskDefinitionArn.$":
+          "$.getServerTaskTags.Tags[?(@.Key=='taskDefinitionArn')].Value",
+        "accessPointId.$":
+          "$.getServerTaskTags.Tags[?(@.Key=='accessPointId')].Value",
+      },
+      resultPath: "$.extractTagValues",
+    });
+
+    const deleteAccessPoint = new CallAwsService(this, "Delete access point", {
+      service: "efs",
+      action: "deleteAccessPoint",
+      iamResources: ["*"],
+      parameters: {
+        AccessPointId: JsonPath.stringAt("$.extractTagValues.accessPointId[0]"),
+      },
+      integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+      resultPath: "$.deleteAccessPoint",
+    });
+
+    const deregisterTaskDefinition = new CallAwsService(
+      this,
+      "Deregister task definition",
+      {
+        service: "ecs",
+        action: "deregisterTaskDefinition",
+        iamResources: ["*"],
+        parameters: {
+          TaskDefinition: JsonPath.stringAt(
+            "$.extractTagValues.taskDefinitionArn[0]",
+          ),
+        },
+        integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+        resultPath: "$.deregisterTaskDefinition",
+      },
+    );
+
+    const deleteTaskDefinition = new CallAwsService(
+      this,
+      "Delete task definition",
+      {
+        service: "ecs",
+        action: "deleteTaskDefinitions",
+        iamResources: ["*"],
+        parameters: {
+          TaskDefinitions: JsonPath.array(
+            JsonPath.stringAt("$.extractTagValues.taskDefinitionArn[0]"),
+          ),
+        },
+        integrationPattern: IntegrationPattern.REQUEST_RESPONSE,
+        resultPath: "$.deleteTaskDefinition",
+      },
+    );
 
     const getCurrentTimeHandler = new NodejsFunction(
       this,
@@ -167,22 +136,14 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
       resultPath: "$.getCurrentTime",
     });
 
-    const extractDdbKeys = new Pass(this, "Extract DDB Keys", {
-      parameters: {
-        "serverId.$": "$.getServerTaskTags.Tags[?(@.Key=='serverId')].Value",
-        "startedAt.$": "$.getServerTaskTags.Tags[?(@.Key=='startedAt')].Value",
-      },
-      resultPath: "$.extractDdbKeys",
-    });
-
     const updateDdbItem = new DynamoUpdateItem(this, "Update DDB item", {
       table: props.serverHistoryTable,
       key: {
         serverId: DynamoAttributeValue.fromString(
-          JsonPath.stringAt("$.extractDdbKeys.serverId[0]"),
+          JsonPath.stringAt("$.extractTagValues.serverId[0]"),
         ),
         startedAt: DynamoAttributeValue.fromNumber(
-          JsonPath.numberAt("$.extractDdbKeys.startedAt[0]"),
+          JsonPath.numberAt("$.extractTagValues.startedAt[0]"),
         ),
       },
       updateExpression: "SET serverStatus = :ss, endedAt = :ea",
@@ -195,32 +156,13 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
       resultPath: JsonPath.DISCARD,
     });
 
-    const successChain = terminateInstance
-      .next(getServerTaskTags)
+    this.definition = getServerTaskTags
+      .next(extractTagValues)
+      .next(deleteAccessPoint)
+      .next(deregisterTaskDefinition)
+      .next(deleteTaskDefinition)
       .next(getCurrentTime)
-      .next(extractDdbKeys)
       .next(updateDdbItem);
-
-    const isSyncComplete = new Choice(this, "Is sync complete?")
-      .when(
-        Condition.stringEquals("$.getSyncStatus.Status", "Success"),
-        successChain,
-      )
-      .when(
-        Condition.or(
-          Condition.stringEquals("$.getSyncStatus.Status", "Pending"),
-          Condition.stringEquals("$.getSyncStatus.Status", "InProgress"),
-          Condition.stringEquals("$.getSyncStatus.Status", "Delayed"),
-        ),
-        waitForSync,
-      )
-      .otherwise(syncFailed);
-
-    this.definition = getInstanceId
-      .next(syncToS3)
-      .next(waitForSync)
-      .next(getSyncStatus)
-      .next(isSyncComplete);
 
     this.stateMachine = new StateMachine(this, `${id}-StateMachine`, {
       stateMachineName: `${id}`,
@@ -240,11 +182,10 @@ export class ServerTeardownOrchestratorConstruct extends Construct {
     this.stateMachine.role.addToPrincipalPolicy(
       new PolicyStatement({
         actions: [
-          "ecs:DescribeContainerInstances",
           "ecs:DescribeTasks",
-          "ssm:SendCommand",
-          "ssm:GetCommandInvocation",
-          "ec2:TerminateInstances",
+          "ecs:DeregisterTaskDefinition",
+          "ecs:DeleteTaskDefinitions",
+          "efs:DeleteAccessPoint",
         ],
         resources: ["*"],
       }),

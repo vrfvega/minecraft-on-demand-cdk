@@ -1,6 +1,6 @@
-import {Logger} from "@aws-lambda-powertools/logger";
+import { Logger } from "@aws-lambda-powertools/logger";
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
-import {marshall, unmarshall} from "@aws-sdk/util-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import middy from "@middy/core";
 import httpCors from "@middy/http-cors";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
@@ -22,7 +22,10 @@ export const lambdaFunction = async (
   try {
     const userId = event.requestContext.authorizer?.userId;
     if (!userId) {
-      return { statusCode: 401, body: JSON.stringify({ message: "Unauthorized" }) };
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ message: "Unauthorized" }),
+      };
     }
     logger.info("Fetching server configuration", { userId });
 
@@ -34,7 +37,10 @@ export const lambdaFunction = async (
       }),
     );
     if (!Item) {
-      return { statusCode: 404, body: JSON.stringify({ message: "Not Found" }) };
+      return {
+        statusCode: 404,
+        body: JSON.stringify({ message: "Not Found" }),
+      };
     }
 
     const serverConfigurationItem = unmarshall(Item) as ServerConfigurationItem;
@@ -47,7 +53,7 @@ export const lambdaFunction = async (
     logger.error("Handler error", { error });
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: "Internal server error"}),
+      body: JSON.stringify({ message: "Internal server error" }),
     };
   }
 };

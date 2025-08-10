@@ -12,7 +12,8 @@ import { customAlphabet } from "nanoid";
 import { ZodError } from "zod";
 
 const SERVER_HISTORY_TABLE_NAME = process.env.SERVER_HISTORY_TABLE_NAME!;
-const SERVER_CONFIGURATIONS_TABLE_NAME = process.env.SERVER_CONFIGURATIONS_TABLE_NAME!;
+const SERVER_CONFIGURATIONS_TABLE_NAME =
+  process.env.SERVER_CONFIGURATIONS_TABLE_NAME!;
 
 const ddbClient = new DynamoDBClient();
 const logger = new Logger({ serviceName: "ServerRequestValidator" });
@@ -75,8 +76,6 @@ export const lambdaHandler = async (
           serverStatus: "PENDING",
           userId: userId,
           taskArn: null,
-          instanceId: null,
-          containerInstanceArn: null,
         }),
         ConditionExpression: "attribute_not_exists(serverId)",
       }),

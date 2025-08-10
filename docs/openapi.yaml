@@ -18,6 +18,7 @@ tags:
   - name: Servers
   - name: Configuration
   - name: Storage
+  - name: Modpacks
 paths:
   /servers:
     get:
@@ -166,7 +167,125 @@ paths:
                 properties:
                   message:
                     type: string
+        '204':
+          description: No Content
         '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /modpacks:
+    get:
+      tags: [Modpacks]
+      summary: List modpacks for the authenticated user
+      operationId: listModpacks
+      parameters:
+        - name: afterKey
+          in: query
+          description: Pagination cursor returned as `lastEvaluatedKey` from the previous page.
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Page size (max 100). Defaults to 10.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            maximum: 100
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModpackListResponse'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [Modpacks]
+      summary: Create a new modpack
+      operationId: createModpack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostModpackPayload'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateModpackResponse'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /modpacks/{modpackId}:
+    parameters:
+      - name: modpackId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Modpacks]
+      summary: Get a modpack by ID
+      operationId: getModpackById
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Modpack'
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [Modpacks]
+      summary: Update a modpack by ID
+      operationId: updateModpackById
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutModpackPayload'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateModpackResponse'
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Modpacks]
+      summary: Delete a modpack by ID
+      operationId: deleteModpackById
+      responses:
+        '204':
+          description: No Content
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 components:
   securitySchemes:
@@ -177,6 +296,18 @@ components:
   responses:
     UnauthorizedError:
       description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequestError:
+      description: Bad Request
       content:
         application/json:
           schema:
@@ -332,4 +463,90 @@ components:
           type: string
           description: Path to poll for server status
       required: [location]
+
+    Mod:
+      type: object
+      properties:
+        projectId: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        addedAt:
+          type: integer
+          format: int64
+      required: [projectId, slug, title, addedAt]
+
+    PostModpackPayload:
+      type: object
+      properties:
+        modpackName: { type: string }
+        mods:
+          type: array
+          items: { $ref: '#/components/schemas/Mod' }
+        type: { type: string }
+        version: { type: string }
+      required: [modpackName, type, version]
+
+    PutModpackPayload:
+      type: object
+      properties:
+        modpackName: { type: string }
+        mods:
+          type: array
+          items: { $ref: '#/components/schemas/Mod' }
+        type: { type: string }
+        version: { type: string }
+      required: [modpackName, type, version]
+
+    Modpack:
+      type: object
+      properties:
+        modpackId: { type: string }
+        modpackName: { type: string }
+        createdAt:
+          type: integer
+          format: int64
+        mods:
+          type: array
+          items: { $ref: '#/components/schemas/Mod' }
+        type: { type: string }
+        updatedAt:
+          type: integer
+          format: int64
+        userId: { type: string }
+        version: { type: string }
+      required: [modpackId, modpackName, createdAt, mods, type, updatedAt, userId, version]
+
+    ModpackListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Modpack' }
+        lastEvaluatedKey:
+          type: string
+          description: Pagination cursor for next page
+      required: [items]
+
+    CreateModpackResponse:
+      type: object
+      properties:
+        modpackId: { type: string }
+        createdAt:
+          type: integer
+          format: int64
+        location:
+          type: string
+          description: Path to the created modpack
+      required: [modpackId, createdAt, location]
+
+    UpdateModpackResponse:
+      type: object
+      properties:
+        location:
+          type: string
+          description: Path to the updated modpack
+        updatedAt:
+          type: integer
+          format: int64
+      required: [location, updatedAt]
 

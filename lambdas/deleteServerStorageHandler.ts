@@ -1,24 +1,60 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { Logger } from "@aws-lambda-powertools/logger";
-import {
-  DeleteObjectsCommand,
-  ListObjectsV2Command,
-  type ListObjectsV2CommandOutput,
-  S3Client,
-} from "@aws-sdk/client-s3";
 import middy from "@middy/core";
 import httpCors from "@middy/http-cors";
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
-const BUCKET_NAME = process.env.BUCKET_NAME!;
-const MAX_DELETE = 1000;
-
-const s3Client = new S3Client();
+const MOUNT_PATH = process.env.MOUNT_PATH ?? "/mnt/efs";
 const logger = new Logger({ serviceName: "DeleteServerStorageHandler" });
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.stat(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteDirContents(targetDir: string): Promise<number> {
+  const entries = await fs.readdir(targetDir, { withFileTypes: true });
+  let deletedCount = 0;
+
+  // Concurrency limiter
+  const concurrency = 16;
+  for (let i = 0; i < entries.length; i += concurrency) {
+    const batch = entries.slice(i, i + concurrency);
+    const results = await Promise.allSettled(
+      batch.map(async (entry) => {
+        const entryPath = path.join(targetDir, entry.name);
+        try {
+          if (entry.isDirectory()) {
+            // Remove directory recursively
+            await fs.rm(entryPath, { recursive: true, force: true });
+          } else {
+            await fs.rm(entryPath, { force: true });
+          }
+          return 1;
+        } catch (err) {
+          logger.warn("Failed to delete entry", { entryPath, err });
+          return 0;
+        }
+      }),
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") deletedCount += r.value;
+    }
+  }
+
+  return deletedCount;
+}
 
 export const lambdaFunction = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
   try {
+    logger.logEventIfEnabled(event);
     const userId = event.requestContext.authorizer?.userId;
     if (!userId) {
       return {
@@ -26,55 +62,23 @@ export const lambdaFunction = async (
         body: JSON.stringify({ message: "Unauthorized" }),
       };
     }
-    const prefix = `${userId}/`;
-    let continuationToken: string | undefined;
-    const allKeys: { Key: string }[] = [];
-
-    do {
-      const list: ListObjectsV2CommandOutput = await s3Client.send(
-        new ListObjectsV2Command({
-          Bucket: BUCKET_NAME,
-          Prefix: prefix,
-          ContinuationToken: continuationToken,
-        }),
-      );
-
-      (list.Contents ?? []).forEach((obj: any) => {
-        if (!obj.Key) return;
-        if (obj.Key === prefix) return;
-        allKeys.push({ Key: obj.Key });
-      });
-
-      continuationToken = list.IsTruncated
-        ? list.NextContinuationToken!
-        : undefined;
-    } while (continuationToken);
-
-    if (allKeys.length === 0) {
+    const userDir = path.join(MOUNT_PATH, userId);
+    
+    const exists = await pathExists(userDir);
+    if (!exists) {
       return {
-        statusCode: 200,
-        body: JSON.stringify({ message: "Nothing to delete" }),
+        statusCode: 204,
+        body: "",
       };
     }
 
-    for (let i = 0; i < allKeys.length; i += MAX_DELETE) {
-      const chunk = allKeys.slice(i, i + MAX_DELETE);
-      await s3Client.send(
-        new DeleteObjectsCommand({
-          Bucket: BUCKET_NAME,
-          Delete: { Objects: chunk, Quiet: false },
-        }),
-      );
-    }
-
+    await deleteDirContents(userDir);
     return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: `Deleted ${allKeys.length} objects under prefix ${prefix}`,
-      }),
+      statusCode: 204,
+      body: "",
     };
   } catch (error: unknown) {
-    logger.error("Error deleting S3 prefix:", { error });
+    logger.error("Error deleting EFS path:", { error });
     return {
       statusCode: 500,
       body: JSON.stringify({ message: "Internal server error" }),

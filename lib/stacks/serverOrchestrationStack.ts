@@ -18,22 +18,27 @@ import type { ITableV2 } from "aws-cdk-lib/aws-dynamodb";
 import type { ISecurityGroup, IVpc } from "aws-cdk-lib/aws-ec2";
 import { Rule } from "aws-cdk-lib/aws-events";
 import { SfnStateMachine } from "aws-cdk-lib/aws-events-targets";
-import { PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
-import type { IBucket } from "aws-cdk-lib/aws-s3";
+import {
+  Policy,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam";
 import type { Construct } from "constructs";
-import { ComputeConstruct } from "../constructs/ComputeConstruct.js";
-import { ServerProvisioningOrchestratorConstruct } from "../constructs/ServerProvisioningOrchestratorConstruct.js";
-import { ServerTeardownOrchestratorConstruct } from "../constructs/ServerTeardownOrchestratorConstruct.js";
+import type { EfsConstruct } from "../constructs/efsConstruct.js";
+import { FargateConstruct } from "../constructs/fargateConstruct.js";
+import { ServerProvisioningOrchestratorConstruct } from "../constructs/serverProvisioningOrchestratorConstruct.js";
+import { ServerTeardownOrchestratorConstruct } from "../constructs/serverTeardownOrchestratorConstruct.js";
 
 export interface ServerOrchestrationStackProps extends StackProps {
   vpc: IVpc;
   securityGroup: ISecurityGroup;
   serverHistoryTable: ITableV2;
-  minecraftWorldsBucket: IBucket;
+  efsConstruct: EfsConstruct;
 }
 
 export class ServerOrchestrationStack extends Stack {
-  readonly computeConstruct: ComputeConstruct;
+  readonly fargateConstruct: FargateConstruct;
 
   constructor(
     scope: Construct,
@@ -42,10 +47,27 @@ export class ServerOrchestrationStack extends Stack {
   ) {
     super(scope, id, props);
 
-    this.computeConstruct = new ComputeConstruct(this, "Compute", {
+    this.fargateConstruct = new FargateConstruct(this, "FargateConstruct", {
       vpc: props.vpc,
-      minecraftWorldsBucket: props.minecraftWorldsBucket,
     });
+
+    const efsReadWritePolicy = new Policy(this, "EfsReadWritePolicy", {
+      statements: [
+        new PolicyStatement({
+          actions: [
+            "elasticfilesystem:ClientMount",
+            "elasticfilesystem:ClientWrite",
+            "elasticfilesystem:ClientRootAccess",
+            "elasticfilesystem:DescribeFileSystems",
+            "elasticfilesystem:DescribeMountTargets",
+            "elasticfilesystem:DescribeAccessPoints",
+          ],
+          resources: [props.efsConstruct.filesystem.fileSystemArn],
+        }),
+      ],
+    });
+    efsReadWritePolicy.attachToRole(this.fargateConstruct.taskRole);
+    efsReadWritePolicy.attachToRole(this.fargateConstruct.taskExecutionRole);
 
     const serverProvisioningOrchestrator =
       new ServerProvisioningOrchestratorConstruct(
@@ -55,8 +77,8 @@ export class ServerOrchestrationStack extends Stack {
           vpc: props.vpc,
           securityGroup: props.securityGroup,
           serverHistoryTable: props.serverHistoryTable,
-          minecraftWorldsBucket: props.minecraftWorldsBucket,
-          computeConstruct: this.computeConstruct,
+          efsConstruct: props.efsConstruct,
+          fargateConstruct: this.fargateConstruct,
         },
       );
 
@@ -106,26 +128,66 @@ export class ServerOrchestrationStack extends Stack {
             ),
             userId: DynamicInput.fromEventPath("$.dynamodb.NewImage.userId.S"),
             serverConfig: {
-              version: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.version.S"),
-              type: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.type.S"),
-              allow_flight: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.allow_flight.S"),
-              allow_nether: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.allow_nether.S"),
-              difficulty: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.difficulty.S"),
-              generate_structures: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.generate_structures.S"),
-              hardcore: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.hardcore.S"),
-              level_type: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.level_type.S"),
-              max_players: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.max_players.S"),
-              mode: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.mode.S"),
-              network_compression_threshold: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.network_compression_threshold.S"),
-              online_mode: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.online_mode.S"),
-              seed: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.seed.S"),
-              simulation_distance: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.simulation_distance.S"),
-              spawn_animals: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_animals.S"),
-              spawn_monsters: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_monsters.S"),
-              spawn_npcs: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_npcs.S"),
-              spawn_protection: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.spawn_protection.S"),
-              sync_chunk_writes: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.sync_chunk_writes.S"),
-              view_distance: DynamicInput.fromEventPath("$.dynamodb.NewImage.serverConfig.M.view_distance.S"),
+              version: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.version.S",
+              ),
+              type: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.type.S",
+              ),
+              allow_flight: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.allow_flight.S",
+              ),
+              allow_nether: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.allow_nether.S",
+              ),
+              difficulty: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.difficulty.S",
+              ),
+              generate_structures: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.generate_structures.S",
+              ),
+              hardcore: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.hardcore.S",
+              ),
+              level_type: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.level_type.S",
+              ),
+              max_players: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.max_players.S",
+              ),
+              mode: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.mode.S",
+              ),
+              network_compression_threshold: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.network_compression_threshold.S",
+              ),
+              online_mode: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.online_mode.S",
+              ),
+              seed: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.seed.S",
+              ),
+              simulation_distance: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.simulation_distance.S",
+              ),
+              spawn_animals: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.spawn_animals.S",
+              ),
+              spawn_monsters: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.spawn_monsters.S",
+              ),
+              spawn_npcs: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.spawn_npcs.S",
+              ),
+              spawn_protection: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.spawn_protection.S",
+              ),
+              sync_chunk_writes: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.sync_chunk_writes.S",
+              ),
+              view_distance: DynamicInput.fromEventPath(
+                "$.dynamodb.NewImage.serverConfig.M.view_distance.S",
+              ),
             },
           }),
         },
@@ -137,7 +199,6 @@ export class ServerOrchestrationStack extends Stack {
       "ServerTeardownOrchestrator",
       {
         serverHistoryTable: props.serverHistoryTable,
-        minecraftWorldsBucket: props.minecraftWorldsBucket,
       },
     );
 
@@ -146,7 +207,7 @@ export class ServerOrchestrationStack extends Stack {
         source: ["aws.ecs"],
         detailType: ["ECS Task State Change"],
         detail: {
-          clusterArn: [this.computeConstruct.cluster.clusterArn],
+          clusterArn: [this.fargateConstruct.cluster.clusterArn],
           lastStatus: ["STOPPED"],
           group: ["minecraft-on-demand"],
         },

@@ -25,7 +25,9 @@ const networkStack = new NetworkStack(app, "NetworkStack", {
 
 const storageStack = new StorageStack(app, "StorageStack", {
   ...commonDeploymentProps,
+  vpc: networkStack.vpc,
 });
+storageStack.node.addDependency(networkStack);
 
 const serverOrchestrationStack = new ServerOrchestrationStack(
   app,
@@ -35,7 +37,7 @@ const serverOrchestrationStack = new ServerOrchestrationStack(
     vpc: networkStack.vpc,
     securityGroup: networkStack.securityGroup,
     serverHistoryTable: storageStack.serverHistoryTable,
-    minecraftWorldsBucket: storageStack.minecraftWorldsBucket,
+    efsConstruct: storageStack.efsConstruct,
   },
 );
 serverOrchestrationStack.node.addDependency(networkStack);
@@ -48,9 +50,10 @@ const minecraftOnDemandServiceStack = new MinecraftOnDemandServiceStack(
     ...commonDeploymentProps,
     serverHistoryTable: storageStack.serverHistoryTable,
     serverConfigurationTable: storageStack.serverConfigurationTable,
-    minecraftWorldsBucket: storageStack.minecraftWorldsBucket,
-    clusterArn: serverOrchestrationStack.computeConstruct.cluster.clusterArn,
+    modpackTable: storageStack.modpackTable,
+    vpc: networkStack.vpc,
+    efsAccessPoint: storageStack.efsConstruct.defaultAccessPoint,
   },
 );
+minecraftOnDemandServiceStack.node.addDependency(networkStack);
 minecraftOnDemandServiceStack.node.addDependency(storageStack);
-minecraftOnDemandServiceStack.node.addDependency(serverOrchestrationStack);
